@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
-using OpenCvSharp;
+﻿using OpenCvSharp;
 
 namespace SAMViewer
 {
@@ -16,9 +9,9 @@ namespace SAMViewer
     /// </summary>
     internal class Transforms
     {
-        public Transforms(int target_length)
+        public Transforms(int targetLength)
         {
-            mTargetLength = target_length;
+            this.targetLength = targetLength;
         }
         /// <summary>
         /// 变换图像，将原始图像变换大小
@@ -28,7 +21,7 @@ namespace SAMViewer
         {
             var neww = 0;
             var newh = 0;
-            GetPreprocessShape(orgw, orgh, mTargetLength, ref neww, ref newh);
+            GetPreprocessShape(orgw, orgh, targetLength, ref neww, ref newh);
 
             // 缩放图像
             var resizedImage = new Mat();
@@ -46,15 +39,15 @@ namespace SAMViewer
             Cv2.Subtract(floatImage, mean, normalizedImage);
             Cv2.Divide(normalizedImage, stddev, normalizedImage);
 
-            var transformedImg = new float[3 * mTargetLength * mTargetLength];
+            var transformedImg = new float[3 * targetLength * targetLength];
             for (var i = 0; i < neww; i++)
             {
                 for (var j = 0; j < newh; j++)
                 {
-                    var index = j * mTargetLength + i;
+                    var index = j * targetLength + i;
                     transformedImg[index] = normalizedImage.At<Vec3f>(j, i)[0];
-                    transformedImg[mTargetLength * mTargetLength + index] = normalizedImage.At<Vec3f>(j, i)[1];
-                    transformedImg[2 * mTargetLength * mTargetLength + index] = normalizedImage.At<Vec3f>(j, i)[2];
+                    transformedImg[targetLength * targetLength + index] = normalizedImage.At<Vec3f>(j, i)[1];
+                    transformedImg[2 * targetLength * targetLength + index] = normalizedImage.At<Vec3f>(j, i)[2];
                 }
             }
             resizedImage.Dispose();
@@ -64,34 +57,34 @@ namespace SAMViewer
             return transformedImg;
         }
       
-        public PointPromotion ApplyCoords(PointPromotion org_point, int orgw, int orgh)
+        public PointPromotion ApplyCoords(PointPromotion orgPoint, int orgw, int orgh)
         {
             var neww = 0;
             var newh = 0;
-            GetPreprocessShape(orgw, orgh, mTargetLength, ref neww, ref newh);
-            var newpointp = new PointPromotion(org_point.m_Optype);
+            GetPreprocessShape(orgw, orgh, targetLength, ref neww, ref newh);
+            var newpointp = new PointPromotion(orgPoint.Optype);
             var scalx = 1.0f * neww / orgw;
             var scaly = 1.0f * newh / orgh;
-            newpointp.X = (int)(org_point.X * scalx);
-            newpointp.Y = (int)(org_point.Y * scaly);
+            newpointp.X = (int)(orgPoint.X * scalx);
+            newpointp.Y = (int)(orgPoint.Y * scaly);
 
             return newpointp;
         }
-        public BoxPromotion ApplyBox(BoxPromotion org_box, int orgw, int orgh)
+        public BoxPromotion ApplyBox(BoxPromotion orgBox, int orgw, int orgh)
         {
             var box = new BoxPromotion();
 
-            var left = ApplyCoords(org_box.mLeftUp, orgw, orgh);
-            var lefrightt = ApplyCoords(org_box.mRightBottom, orgw, orgh);
+            var left = ApplyCoords(orgBox.mLeftUp, orgw, orgh);
+            var lefrightt = ApplyCoords(orgBox.mRightBottom, orgw, orgh);
 
             box.mLeftUp = left;
             box.mRightBottom = lefrightt;
             return box;
         }
 
-        public void GetPreprocessShape(int oldw, int oldh, int long_side_length, ref int neww, ref int newh)
+        public void GetPreprocessShape(int oldw, int oldh, int longSideLength, ref int neww, ref int newh)
         {
-            var scale = long_side_length * 1.0f / Math.Max(oldh, oldw);
+            var scale = longSideLength * 1.0f / Math.Max(oldh, oldw);
             var newht = oldh * scale;
             var newwt = oldw * scale;
 
@@ -99,7 +92,7 @@ namespace SAMViewer
             newh = (int)(newht + 0.5);
         }
 
-        private int mTargetLength; //目标图像大小（宽=高）
+        private readonly int targetLength; //目标图像大小（宽=高）
 
 
     }

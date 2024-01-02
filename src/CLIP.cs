@@ -8,27 +8,28 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
 
 namespace SAMViewer
 {
     /// <summary>
     /// Image And Text Encoder
     /// </summary>
-    internal class CLIP
+    internal class Clip
     {
-        private       InferenceSession txtEncoder;
-        private       InferenceSession imgEncoder;
-        public static CLIP             TheSingleton;
-        private const int              ContextLength = 77;
+        private       InferenceSession? txtEncoder;
+        private       InferenceSession? imgEncoder;
+        public static Clip?             TheSingleton;
+        private const int               ContextLength = 77;
 
-        protected CLIP()
+        protected Clip()
         {
             var thread = new Thread(LoadOnnxModel);
             thread.Start();       
         }
-        public static CLIP Instance()
+        public static Clip Instance()
         {
-            return TheSingleton ?? (TheSingleton = new CLIP());
+            return TheSingleton ??= new Clip();
         }
 
         /// <summary>
@@ -40,8 +41,8 @@ namespace SAMViewer
 
             imgEncoder?.Dispose();
 
-            var exePath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-            var textEncoder = exePath + @"\textual.onnx";
+            var exePath     = AppContext.BaseDirectory;
+            var textEncoder = Path.Combine(exePath, "textual.onnx");
             if (!File.Exists(textEncoder))
             {
                 MessageBox.Show(textEncoder + " not exist!");
@@ -64,11 +65,11 @@ namespace SAMViewer
         /// </summary>
         public List<float> TxtEncoder(string txt)
         {
-            var token = SimpleTokenizer.Instance().tolikenlize(txt);
-            var txt_tensor = new DenseTensor<Int64>(token.ToArray(), new[] { 1,ContextLength });
+            var token = SimpleTokenizer.Instance().Tolikenlize(txt);
+            var txtTensor = new DenseTensor<Int64>(token.ToArray(), new[] { 1,ContextLength });
             var inputs = new List<NamedOnnxValue>
             {
-                NamedOnnxValue.CreateFromTensor("input", txt_tensor)
+                NamedOnnxValue.CreateFromTensor("input", txtTensor)
             };
 
             var results = txtEncoder.Run(inputs);

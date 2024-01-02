@@ -1,14 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading;
+﻿using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using System.Linq;
 
 namespace SAMViewer
 {
@@ -18,24 +14,24 @@ namespace SAMViewer
     public partial class MainWindow : Window
     {
         // 图像文件路径
-        private string          mImagePath     = string.Empty;
-        private SAM             mSam           = SAM.Instance();
-        private CLIP            mCLIP          = CLIP.Instance();
-        private List<Promotion> mPromotionList = new List<Promotion>();
-        private float[]         mImgEmbedding;
-        private RectAnnotation  mCurRectAnno;
-        private Point           _startPoint;
-        private int             mOrgwid;
+        private          string          imagePath     = string.Empty;
+        private readonly Sam             sam           = Sam.Instance();
+        private readonly Clip            clip          = SAMViewer.Clip.Instance();
+        private readonly List<Promotion> promotionList = new();
+        private          float[]         imgEmbedding;
+        private          RectAnnotation  curRectAnno;
+        private          Point           startPoint;
+        private          int             orgwid;
 
-        private int mOrghei;
+        private int orghei;
         //undo and redo
-        private Stack<Promotion> mUndoStack = new Stack<Promotion>();
-        private Stack<Promotion> mRedoStack = new Stack<Promotion>();
-        private Dispatcher       UI;
-        private SAMAutoMask      mAutoMask;
-        private MaskData         mAutoMaskData;
+        private readonly Stack<Promotion> undoStack = new();
+        private readonly Stack<Promotion> redoStack = new();
+        private readonly Dispatcher       ui;
+        private          SamAutoMask      autoMask;
+        private          MaskData         autoMaskData;
 
-        private Operation mCurOp;
+        private Operation curOp;
         // 构造函数
         public MainWindow()
         {
@@ -47,7 +43,7 @@ namespace SAMViewer
             mMask.Width = 0.7f * Width;
             mMask.Height = Height;
 
-            UI = Dispatcher.CurrentDispatcher;
+            ui = Dispatcher.CurrentDispatcher;
 
         }
 
@@ -57,8 +53,8 @@ namespace SAMViewer
         private void LoadImage(string imgpath)
         {
             var bitmap = new BitmapImage(new Uri(imgpath));
-            mOrgwid = (int)bitmap.Width;
-            mOrghei = (int)bitmap.Height;
+            orgwid = (int)bitmap.Width;
+            orghei = (int)bitmap.Height;
             mImage.Source = bitmap;//显示图像            
         }
         // 鼠标左键按下事件处理程序
@@ -66,12 +62,12 @@ namespace SAMViewer
         {
             // 如果当前没有选中的标注，创建一个点标注
             mImage.CaptureMouse();
-            switch (mCurOp)
+            switch (curOp)
             {
                 case Operation.Point:
                 {
-                    var type  = RAdd.IsChecked == true ? OpType.ADD : OpType.REMOVE;
-                    var brush = type           == OpType.ADD ? Brushes.Red : Brushes.Black;
+                    var type  = RAdd.IsChecked == true ? OpType.Add : OpType.Remove;
+                    var brush = type           == OpType.Add ? Brushes.Red : Brushes.Black;
 
                     var annotation = new PointAnnotation(brush);
                     var canvasP    = e.GetPosition(ImgCanvas);
@@ -87,33 +83,33 @@ namespace SAMViewer
              
               
                     var ts  = new Transforms(1024);
-                    var ptn = ts.ApplyCoords((promt as PointPromotion), mOrgwid, mOrghei);
-                    ptn.mAnation = annotation;
-                    mUndoStack.Push(ptn);
-                    mPromotionList.Add(ptn);
+                    var ptn = ts.ApplyCoords((promt as PointPromotion)!, orgwid, orghei);
+                    ptn.Anation = annotation;
+                    undoStack.Push(ptn);
+                    promotionList.Add(ptn);
                     var thread = new Thread(() =>
                     {
-                        var md = mSam.Decode(mPromotionList, mImgEmbedding, mOrgwid, mOrghei);
-                        ShowMask(md.mMask.ToArray(), Color.FromArgb(100, 255, 0, 0));
+                        var md = sam.Decode(promotionList, imgEmbedding, orgwid, orghei);
+                        ShowMask(md.Mask.ToArray(), Color.FromArgb(100, 255, 0, 0));
                     });
                     thread.Start();
                     break;
                 }
                 case Operation.Box:
                 {
-                    _startPoint = e.GetPosition(ImgCanvas);
-                    mCurRectAnno = new RectAnnotation
+                    startPoint = e.GetPosition(ImgCanvas);
+                    curRectAnno = new RectAnnotation
                     {
                         Width         = 0,
                         Height        = 0,
-                        StartPosition = _startPoint
+                        StartPosition = startPoint
                     };
                     Reset();
-                    ImgCanvas.Children.Add(mCurRectAnno);
+                    ImgCanvas.Children.Add(curRectAnno);
 
                     var clickPoint  = e.GetPosition(mImage);
                     var orgImgPoint = Window2Image(clickPoint);
-                    mCurRectAnno.LeftUP = orgImgPoint;
+                    curRectAnno.LeftUp = orgImgPoint;
                     break;
                 }
             }
@@ -123,51 +119,51 @@ namespace SAMViewer
         private void image_MouseMove(object sender, MouseEventArgs e)
         {
             // 如果当前有选中的标注，处理拖动和调整大小操作
-            if (e.LeftButton != MouseButtonState.Pressed || mCurRectAnno == null) return;
+            if (e.LeftButton != MouseButtonState.Pressed || curRectAnno == null) return;
             var currentPoint = e.GetPosition(ImgCanvas);
-            var width        = Math.Abs(currentPoint.X - _startPoint.X);
-            var height       = Math.Abs(currentPoint.Y - _startPoint.Y);
-            mCurRectAnno.Width  = width;
-            mCurRectAnno.Height = height;
-            Canvas.SetLeft(mCurRectAnno, Math.Min(_startPoint.X, currentPoint.X));
-            Canvas.SetTop(mCurRectAnno, Math.Min(_startPoint.Y, currentPoint.Y));
+            var width        = Math.Abs(currentPoint.X - startPoint.X);
+            var height       = Math.Abs(currentPoint.Y - startPoint.Y);
+            curRectAnno.Width  = width;
+            curRectAnno.Height = height;
+            Canvas.SetLeft(curRectAnno, Math.Min(startPoint.X, currentPoint.X));
+            Canvas.SetTop(curRectAnno, Math.Min(startPoint.Y, currentPoint.Y));
         }
         private void image_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             mImage.ReleaseMouseCapture();
-            if (mCurRectAnno == null)
+            if (curRectAnno == null)
                 return;
         
             var clickPoint = e.GetPosition(mImage);
             var orgImgPoint = Window2Image(clickPoint);
-            mCurRectAnno.RightBottom = orgImgPoint;
+            curRectAnno.RightBottom = orgImgPoint;
 
             var promt = new BoxPromotion
             {
                 mLeftUp =
                 {
-                    X = (int)mCurRectAnno.LeftUP.X,
-                    Y = (int)mCurRectAnno.LeftUP.Y
+                    X = (int)curRectAnno.LeftUp.X,
+                    Y = (int)curRectAnno.LeftUp.Y
                 },
                 mRightBottom =
                 {
-                    X = (int)mCurRectAnno.RightBottom.X,
-                    Y = (int)mCurRectAnno.RightBottom.Y
+                    X = (int)curRectAnno.RightBottom.X,
+                    Y = (int)curRectAnno.RightBottom.Y
                 }
             };
 
             var ts = new Transforms(1024);
-            var pb = ts.ApplyBox(promt, mOrgwid, mOrghei);
-            pb.mAnation = mCurRectAnno;
-            mUndoStack.Push(pb);
-            mPromotionList.Add(pb);
+            var pb = ts.ApplyBox(promt, orgwid, orghei);
+            pb.Anation = curRectAnno;
+            undoStack.Push(pb);
+            promotionList.Add(pb);
             var thread = new Thread(() =>
             {
-                var md = mSam.Decode(mPromotionList, mImgEmbedding,mOrgwid,mOrghei);
-                ShowMask(md.mMask.ToArray(), Color.FromArgb(100, 255, 0, 0));
+                var md = sam.Decode(promotionList, imgEmbedding,orgwid,orghei);
+                ShowMask(md.Mask.ToArray(), Color.FromArgb(100, 255, 0, 0));
             });
             thread.Start();
-            mCurRectAnno = null;
+            curRectAnno = null;
         }
        
         /// <summary>
@@ -190,35 +186,35 @@ namespace SAMViewer
             if (result == true)
             {
                 ImgPathTxt.Text = openFileDialog.FileName;
-                mImagePath = ImgPathTxt.Text;
+                imagePath = ImgPathTxt.Text;
 
-                if (!File.Exists(mImagePath))
+                if (!File.Exists(imagePath))
                     return;
 
                 LoadImgGrid.Visibility = Visibility.Collapsed;
                 ImgCanvas.Visibility = Visibility.Visible;
-                LoadImage(mImagePath);
+                LoadImage(imagePath);
                 ShowStatus("Image Loaded");
 
                 var thread = new Thread(() =>
                 {
-                    mSam.LoadONNXModel();//加载Segment Anything模型
+                    sam.LoadOnnxModel();//加载Segment Anything模型
 
-                    UI.Invoke(new Action(delegate
+                    ui.Invoke(new Action(delegate
                     {
                         ShowStatus("ONNX Model Loaded");
                     }));
                     // 读取图像
-                    var image = OpenCvSharp.Cv2.ImRead(mImagePath);
-                    mImgEmbedding = mSam.Encode(image, mOrgwid, mOrghei);//Image Embedding
+                    var image = OpenCvSharp.Cv2.ImRead(imagePath);
+                    imgEmbedding = sam.Encode(image, orgwid, orghei);//Image Embedding
 
-                    mAutoMask               = new SAMAutoMask
+                    autoMask               = new SamAutoMask
                     {
-                        mImgEmbedding = mImgEmbedding,
-                        mSAM          = mSam
+                        ImgEmbedding = imgEmbedding,
+                        Sam          = sam
                     };
                     image.Dispose();
-                    UI.Invoke(new Action(delegate
+                    ui.Invoke(new Action(delegate
                     {
                         ShowStatus("Image Embedding Cal Finished");
                     }));
@@ -260,18 +256,18 @@ namespace SAMViewer
         /// </summary>
         private void BUndo_Click(object sender, RoutedEventArgs e)
         {
-            if (mUndoStack.Count > 0)
+            if (undoStack.Count > 0)
             {
-                var p = mUndoStack.Pop();
-                mRedoStack.Push(p);
+                var p = undoStack.Pop();
+                redoStack.Push(p);
                 RemoveAnnotation(p);
-                mPromotionList.Clear();
-                mPromotionList.AddRange(mUndoStack.ToArray());
+                promotionList.Clear();
+                promotionList.AddRange(undoStack.ToArray());
                 
                 var thread = new Thread(() =>
                 {
-                    var md = mSam.Decode(mPromotionList, mImgEmbedding, mOrgwid, mOrghei);
-                    ShowMask(md.mMask.ToArray(), Color.FromArgb(100, 255, 0, 0));
+                    var md = sam.Decode(promotionList, imgEmbedding, orgwid, orghei);
+                    ShowMask(md.Mask.ToArray(), Color.FromArgb(100, 255, 0, 0));
                 });
                 thread.Start();
             }
@@ -285,17 +281,17 @@ namespace SAMViewer
         /// </summary>
         private void BRedo_Click(object sender, RoutedEventArgs e)
         {
-            if (mRedoStack.Count > 0)
+            if (redoStack.Count > 0)
             {
-                var pt = mRedoStack.Pop();
-                mUndoStack.Push(pt);
+                var pt = redoStack.Pop();
+                undoStack.Push(pt);
                 AddAnnotation(pt);
-                mPromotionList.Clear();
-                mPromotionList.AddRange(mUndoStack.ToArray());
+                promotionList.Clear();
+                promotionList.AddRange(undoStack.ToArray());
                 var thread = new Thread(() =>
                 {
-                    var md = mSam.Decode(mPromotionList, mImgEmbedding, mOrgwid, mOrghei);
-                    ShowMask(md.mMask.ToArray(), Color.FromArgb(100, 255, 0, 0));
+                    var md = sam.Decode(promotionList, imgEmbedding, orgwid, orghei);
+                    ShowMask(md.Mask.ToArray(), Color.FromArgb(100, 255, 0, 0));
                 });
                 thread.Start();
             }
@@ -317,18 +313,18 @@ namespace SAMViewer
         private void ShowMask(float[] mask, Color color)
         {
 
-            UI.Invoke(new Action(delegate
+            ui.Invoke(new Action(delegate
             {
-                var bp = new WriteableBitmap(mOrgwid, mOrghei, 96, 96, PixelFormats.Pbgra32, null);
+                var bp = new WriteableBitmap(orgwid, orghei, 96, 96, PixelFormats.Pbgra32, null);
                 // 设置像素数据，将所有像素的透明度设置为半透明
-                var pixelData = new byte[mOrgwid * mOrghei * 4];
+                var pixelData = new byte[orgwid * orghei * 4];
                 Array.Clear(pixelData, 0, pixelData.Length);
-                for (var y = 0; y < mOrghei; y++)
+                for (var y = 0; y < orghei; y++)
                 {
-                    for (var x = 0; x < mOrgwid; x++)
+                    for (var x = 0; x < orgwid; x++)
                     {
-                        var ind = y * mOrgwid + x;
-                        if (!(mask[ind] > mSam.mask_threshold)) continue;
+                        var ind = y * orgwid + x;
+                        if (!(mask[ind] > sam.MaskThreshold)) continue;
                         pixelData[4 * ind]     = color.B; // Blue
                         pixelData[4 * ind + 1] = color.G; // Green
                         pixelData[4 * ind + 2] = color.R; // Red
@@ -336,7 +332,7 @@ namespace SAMViewer
                     }
                 }
 
-                bp.WritePixels(new Int32Rect(0, 0, mOrgwid, mOrghei), pixelData, mOrgwid * 4, 0);
+                bp.WritePixels(new Int32Rect(0, 0, orgwid, orghei), pixelData, orgwid * 4, 0);
                 // 创建一个BitmapImage对象，将WriteableBitmap作为源
                 mMask.Source = bp;
             }));
@@ -347,52 +343,76 @@ namespace SAMViewer
         /// </summary>
         private void ShowMask(MaskData mask)
         {
-            UI.Invoke(new Action(delegate
+            ui.Invoke(() =>
             {
                 ShowStatus("Finish");
                 ClearAnnotation();
-                var bp = new WriteableBitmap(mOrgwid, mOrghei, 96, 96, PixelFormats.Pbgra32, null);
+                var bp = new WriteableBitmap(orgwid, orghei, 96, 96, PixelFormats.Pbgra32, null);
                 // 设置像素数据，将所有像素的透明度设置为半透明
-                var pixelData = new byte[mOrgwid * mOrghei * 4];
+                var pixelData = new byte[orgwid * orghei * 4];
                 Array.Clear(pixelData, 0, pixelData.Length);
-                for (var i =0;i< mask.mShape[1];i++)
+                for (var i = 0; i < mask.Shape[1]; i++)
                 {
                     var random = new Random();
-                    var randomColor = Color.FromArgb(100, (byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256));
-                    for (var y = 0; y < mOrghei; y++)
+                    var randomColor = Color.FromArgb(100, (byte)random.Next(256), (byte)random.Next(256),
+                        (byte)random.Next(256));
+                    for (var y = 0; y < orghei; y++)
                     {
-                        for (var x = 0; x < mOrgwid; x++)
+                        for (var x = 0; x < orgwid; x++)
                         {
                             //int ind = i* this.mOrghei* this.mOrgwid+y * this.mOrgwid + x;
                             //int indpixel = y * this.mOrgwid + x;
                             //if (mask.mMask[ind] > this.mSam.mask_threshold)
 
-                            var indpixel = y * mOrgwid + x;
-                            if (mask.mfinalMask[i][indpixel] > mSam.mask_threshold)
+                            var indpixel = y * orgwid + x;
+                            if (mask.MfinalMask[i][indpixel] > sam.MaskThreshold)
                             {
-                                pixelData[4 * indpixel] = randomColor.B;  // Blue
-                                pixelData[4 * indpixel + 1] = randomColor.G;  // Green
-                                pixelData[4 * indpixel + 2] = randomColor.R;  // Red
-                                pixelData[4 * indpixel + 3] = 100;  // Alpha
+                                pixelData[4 * indpixel]     = randomColor.B; // Blue
+                                pixelData[4 * indpixel + 1] = randomColor.G; // Green
+                                pixelData[4 * indpixel + 2] = randomColor.R; // Red
+                                pixelData[4 * indpixel + 3] = 100;           // Alpha
                             }
                         }
                     }
-                    var leftup = Image2Window(new Point(mask.mBox[4 * i], mask.mBox[4 * i+1]));
-                    var rightdown = Image2Window(new Point(mask.mBox[4 * i+2], mask.mBox[4 * i +3]));
-                    var box = new RectAnnotation();
+
+                    var leftup    = Image2Window(new Point(mask.Box[4 * i], mask.Box[4 * i + 1]));
+                    var rightdown = Image2Window(new Point(mask.Box[4                  * i + 2], mask.Box[4 * i + 3]));
+                    var box       = new RectAnnotation();
                     ImgCanvas.Children.Add(box);
-                    box.Width = rightdown.X - leftup.X;
+                    box.Width  = rightdown.X - leftup.X;
                     box.Height = rightdown.Y - leftup.Y;
                     Canvas.SetLeft(box, leftup.X);
                     Canvas.SetTop(box, leftup.Y);
-
-                  
                 }
-              
-                bp.WritePixels(new Int32Rect(0, 0, mOrgwid, mOrghei), pixelData, mOrgwid * 4, 0);
+
+                bp.WritePixels(new Int32Rect(0, 0, orgwid, orghei), pixelData, orgwid * 4, 0);
                 // 创建一个BitmapImage对象，将WriteableBitmap作为源
                 mMask.Source = bp;
-            }));
+                var rtbitmap = new RenderTargetBitmap(bp.PixelWidth, 
+                    bp.PixelHeight, 
+                    bp.DpiX, 
+                    bp.DpiY, 
+                    PixelFormats.Default);
+                var drawingVisual = new DrawingVisual();
+                using (var dc = drawingVisual.RenderOpen())
+                {
+                    dc.DrawImage(bp, new Rect(0, 0, bp.Width, bp.Height));
+                }
+                rtbitmap.Render(drawingVisual);
+                var bitmapEncoder = new JpegBitmapEncoder();
+                bitmapEncoder.Frames.Add(BitmapFrame.Create(rtbitmap));
+                var strDir  = Path.Combine(AppContext.BaseDirectory , "Output");
+                var strpath = Path.Combine(strDir, DateTime.Now.ToString("yyyyMMddfff") + ".jpg");
+                if (!Directory.Exists(strDir))
+                {
+                    Directory.CreateDirectory(strDir);
+                }
+                if (!File.Exists(strpath))
+                {
+                    using var stream = File.OpenWrite(strpath);
+                    bitmapEncoder.Save(stream);
+                }
+            });
         }
         /// <summary>
         /// 窗口坐标转图像坐标
@@ -401,10 +421,10 @@ namespace SAMViewer
         {
             var imageWidth  = mImage.ActualWidth;
             var imageHeight = mImage.ActualHeight;
-            var scaleX      = imageWidth                        / mOrgwid;
-            var scaleY      = imageHeight                       / mOrghei;
-            var offsetX     = (imageWidth   - scaleX * mOrgwid) / 2;
-            var offsetY     = (imageHeight  - scaleY * mOrghei) / 2;
+            var scaleX      = imageWidth                        / orgwid;
+            var scaleY      = imageHeight                       / orghei;
+            var offsetX     = (imageWidth   - scaleX * orgwid) / 2;
+            var offsetY     = (imageHeight  - scaleY * orghei) / 2;
             var imageX      = (clickPoint.X - offsetX)          / scaleX;
             var imageY      = (clickPoint.Y - offsetY)          / scaleY;
             var p           = new Point
@@ -420,10 +440,10 @@ namespace SAMViewer
         {
             var imageWidth = mImage.ActualWidth;
             var imageHeight = mImage.ActualHeight;
-            var scaleX = imageWidth / mOrgwid;
-            var scaleY = imageHeight / mOrghei;
-            var offsetX = (imageWidth - scaleX * mOrgwid) / 2;
-            var offsetY = (imageHeight - scaleY * mOrghei) / 2;
+            var scaleX = imageWidth / orgwid;
+            var scaleY = imageHeight / orghei;
+            var offsetX = (imageWidth - scaleX * orgwid) / 2;
+            var offsetY = (imageHeight - scaleY * orghei) / 2;
 
             var windowsX = image.X * scaleX + offsetX;
             var windowsY = image.Y * scaleY + offsetX;
@@ -452,16 +472,16 @@ namespace SAMViewer
         /// </summary>
         private void RemoveAnnotation(Promotion pt)
         {
-            if (ImgCanvas.Children.Contains(pt.mAnation))
-                ImgCanvas.Children.Remove(pt.mAnation);
+            if (ImgCanvas.Children.Contains(pt.Anation))
+                ImgCanvas.Children.Remove(pt.Anation);
         }
         /// <summary>
         /// 添加
         /// </summary>
         private void AddAnnotation(Promotion pt)
         {
-            if (!ImgCanvas.Children.Contains(pt.mAnation))
-                ImgCanvas.Children.Add(pt.mAnation);
+            if (!ImgCanvas.Children.Contains(pt.Anation))
+                ImgCanvas.Children.Add(pt.Anation);
 
         }
         /// <summary>
@@ -475,49 +495,49 @@ namespace SAMViewer
         private void Reset()
         {
             ClearAnnotation();
-            mPromotionList.Clear();
+            promotionList.Clear();
             mMask.Source = null;
         }
 
         private void mAddPoint_Click(object sender, RoutedEventArgs e)
         {
-            mCurOp = Operation.Point;
+            curOp = Operation.Point;
         }
 
         private void mAddBox_Click(object sender, RoutedEventArgs e)
         {
-            mCurOp = Operation.Box;
+            curOp = Operation.Box;
         }
 
         private void mAutoSeg_Click(object sender, RoutedEventArgs e)
         {
-            mAutoMask.points_per_side = int.Parse(mPoints_per_side.Text);
-            mAutoMask.pred_iou_thresh = float.Parse(mPred_iou_thresh.Text);
-            mAutoMask.stability_score_thresh = float.Parse(mStability_score_thresh.Text);
+            autoMask.PointsPerSide = int.Parse(mPoints_per_side.Text);
+            autoMask.PredIouThresh = float.Parse(mPred_iou_thresh.Text);
+            autoMask.StabilityScoreThresh = float.Parse(mStability_score_thresh.Text);
             ShowStatus("Auto Segment......");
             var thread = new Thread(() =>
             {
-                mCurOp = Operation.Everything;               
-                mAutoMaskData = mAutoMask.Generate(mImagePath);
-                ShowMask(mAutoMaskData);
+                curOp = Operation.Everything;               
+                autoMaskData = autoMask.Generate(imagePath);
+                ShowMask(autoMaskData);
             });
             thread.Start();        
         }
 
         private MaskData MatchTextAndImage(string txt)
         {
-            var txtEmbedding = mCLIP.TxtEncoder(txt);
-            var image = new OpenCvSharp.Mat(mImagePath);
+            var txtEmbedding = clip.TxtEncoder(txt);
+            var image = new OpenCvSharp.Mat(imagePath);
             var maxIndex = 0;
             var max = 0.0;
             var final = new MaskData();
-            for (var i = 0; i < mAutoMaskData.mShape[1]; i++)
+            for (var i = 0; i < autoMaskData.Shape[1]; i++)
             {
                 // Define the coordinates of the ROI
-                var x = mAutoMaskData.mBox[4 * i];  // Top-left x coordinate
-                var y = mAutoMaskData.mBox[4 * i + 1];// Top-left y coordinate
-                var width = mAutoMaskData.mBox[4 * i + 2] - mAutoMaskData.mBox[4 * i];  // Width of the ROI
-                var height = mAutoMaskData.mBox[4 * i + 3] - mAutoMaskData.mBox[4 * i + 1];  // Height of the ROI
+                var x = autoMaskData.Box[4 * i];  // Top-left x coordinate
+                var y = autoMaskData.Box[4 * i + 1];// Top-left y coordinate
+                var width = autoMaskData.Box[4 * i + 2] - autoMaskData.Box[4 * i];  // Width of the ROI
+                var height = autoMaskData.Box[4 * i + 3] - autoMaskData.Box[4 * i + 1];  // Height of the ROI
 
                 // Create a Rect object for the ROI
                 var roiRect = new OpenCvSharp.Rect(x, y, width, height);
@@ -567,7 +587,7 @@ namespace SAMViewer
                     }
                 }
 
-                var imgEmbedding = mCLIP.ImgEncoder(transformedImg);
+                var imgEmbedding = clip.ImgEncoder(transformedImg);
                 var maxs = CalculateCosineSimilarity(txtEmbedding.ToList(), imgEmbedding.ToList());
                 if (maxs > max)
                 {
@@ -581,13 +601,13 @@ namespace SAMViewer
                 floatImage.Dispose();
             }
 
-            mAutoMaskData.mShape.CopyTo(final.mShape,0);
-            final.mShape[1] = 1;
-            final.mBox.AddRange(mAutoMaskData.mBox.GetRange(maxIndex * 4, 4));
-            final.mIoU.AddRange(mAutoMaskData.mIoU.GetRange(maxIndex, 1));
-            final.mStalibility.AddRange(mAutoMaskData.mStalibility.GetRange(maxIndex, 1));
+            autoMaskData.Shape.CopyTo(final.Shape,0);
+            final.Shape[1] = 1;
+            final.Box.AddRange(autoMaskData.Box.GetRange(maxIndex * 4, 4));
+            final.IoU.AddRange(autoMaskData.IoU.GetRange(maxIndex, 1));
+            final.Stalibility.AddRange(autoMaskData.Stalibility.GetRange(maxIndex, 1));
             //.GetRange(maxindex * final.mShape[2] * final.mShape[3], final.mShape[2] * final.mShape[3])
-            final.mfinalMask.Add(mAutoMaskData.mfinalMask[maxIndex]);
+            final.MfinalMask.Add(autoMaskData.MfinalMask[maxIndex]);
 
 
 
@@ -598,7 +618,7 @@ namespace SAMViewer
         }
         private void mText_Click(object sender, RoutedEventArgs e)
         {
-            mCurOp = Operation.Text;
+            curOp = Operation.Text;
             ShowStatus("Image And Text Matching......");
             var txt = mTextinput.Text;
             var thread = new Thread(() =>

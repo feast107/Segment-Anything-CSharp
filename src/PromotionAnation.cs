@@ -1,5 +1,4 @@
-﻿using System;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
@@ -11,13 +10,13 @@ namespace SAMViewer
     {
         private const int DefaultSize = 10;
 
-        private readonly Shape _shape;
-        private readonly TextBlock _textBlock;
-        public SolidColorBrush m_Brush = Brushes.Red;
+        private readonly Shape shape;
+        private readonly TextBlock textBlock;
+        public SolidColorBrush Brush = Brushes.Red;
         public PointAnnotation(SolidColorBrush brush)
         {
-            m_Brush = brush;
-            _shape = new Ellipse
+            Brush = brush;
+            shape = new Ellipse
             {
                 Width = DefaultSize,
                 Height = DefaultSize,
@@ -26,7 +25,7 @@ namespace SAMViewer
                 StrokeThickness = 1
             };
 
-            _textBlock = new TextBlock
+            textBlock = new TextBlock
             {
                 Text = "Point",
                 Foreground = Brushes.Black,
@@ -36,23 +35,23 @@ namespace SAMViewer
             };
 
             var grid = new Grid();
-            grid.Children.Add(_shape);
+            grid.Children.Add(shape);
 
             Content = grid;
         }
         public Point Position
         {
-            get { return new Point(Canvas.GetLeft(this) + _shape.Width / 2, Canvas.GetTop(this) + _shape.Height / 2); }
+            get { return new Point(Canvas.GetLeft(this) + shape.Width / 2, Canvas.GetTop(this) + shape.Height / 2); }
             set
             {
-                Canvas.SetLeft(this, value.X - _shape.Width / 2);
-                Canvas.SetTop(this, value.Y - _shape.Height / 2);
+                Canvas.SetLeft(this, value.X - shape.Width / 2);
+                Canvas.SetTop(this, value.Y - shape.Height / 2);
             }
         }
         public string Text
         {
-            get { return _textBlock.Text; }
-            set { _textBlock.Text = value; }
+            get { return textBlock.Text; }
+            set { textBlock.Text = value; }
         }
 
         //protected override void OnMouseLeftButtonDown(System.Windows.Input.MouseButtonEventArgs e)
@@ -83,12 +82,12 @@ namespace SAMViewer
     /// </summary>
     public class RectAnnotation : UserControl
     {
-        private readonly Shape _shape;
-        private readonly TextBlock _textBlock;
+        private readonly Shape shape;
+        private readonly TextBlock textBlock;
 
         public RectAnnotation()
         {
-            _shape = new Rectangle
+            shape = new Rectangle
             {
                 Width = 50,
                 Height = 50,
@@ -97,7 +96,7 @@ namespace SAMViewer
                 StrokeThickness = 1
             };
 
-            _textBlock = new TextBlock
+            textBlock = new TextBlock
             {
                 Text = "Rect",
                 Foreground = Brushes.Blue,
@@ -107,7 +106,7 @@ namespace SAMViewer
             };
 
             var grid = new Grid();
-            grid.Children.Add(_shape);
+            grid.Children.Add(shape);
             //grid.Children.Add(_textBlock);
 
             Content = grid;
@@ -115,33 +114,33 @@ namespace SAMViewer
 
         public Point StartPosition
         {
-            get { return new Point(Canvas.GetLeft(this) + _shape.Width / 2, Canvas.GetTop(this) + _shape.Height / 2); }
+            get { return new Point(Canvas.GetLeft(this) + shape.Width / 2, Canvas.GetTop(this) + shape.Height / 2); }
             set
             {
-                Canvas.SetLeft(this, value.X - _shape.Width / 2);
-                Canvas.SetTop(this, value.Y - _shape.Height / 2);
+                Canvas.SetLeft(this, value.X - shape.Width / 2);
+                Canvas.SetTop(this, value.Y - shape.Height / 2);
             }
         }
 
-        public Point LeftUP { get; set; }
+        public Point LeftUp { get; set; }
         public Point RightBottom { get; set; }
 
         public double Width
         {
-            get { return _shape.Width; }
-            set { _shape.Width = value; }
+            get { return shape.Width; }
+            set { shape.Width = value; }
         }
 
         public double Height
         {
-            get { return _shape.Height; }
-            set { _shape.Height = value; }
+            get { return shape.Height; }
+            set { shape.Height = value; }
         }
 
         public string Text
         {
-            get { return _textBlock.Text; }
-            set { _textBlock.Text = value; }
+            get { return textBlock.Text; }
+            set { textBlock.Text = value; }
         }
 
         protected override void OnMouseLeftButtonDown(System.Windows.Input.MouseButtonEventArgs e)

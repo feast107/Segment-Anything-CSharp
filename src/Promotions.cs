@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Controls;
+﻿using System.Windows.Controls;
 
 namespace SAMViewer
 {
@@ -15,10 +10,10 @@ namespace SAMViewer
 
     public abstract class Promotion
     {
-        public UserControl mAnation;
+        public UserControl Anation;
         public abstract float[] GetInput();
         public abstract float[] GetLable();
-        public PromotionType mType;
+        public PromotionType Type;
     }
     /// <summary>
     /// 提示点
@@ -28,8 +23,8 @@ namespace SAMViewer
 
         public PointPromotion(OpType optype)
         {
-            mType = PromotionType.Point;
-            m_Optype = optype;
+            Type = PromotionType.Point;
+            Optype = optype;
         }
         public int X { get; set; }
         public int Y { get; set; }
@@ -39,7 +34,7 @@ namespace SAMViewer
         }
         public override float[] GetLable()
         {
-            if (m_Optype == OpType.ADD)
+            if (Optype == OpType.Add)
             {
                 return new float[1] { 1 };
             }
@@ -49,12 +44,12 @@ namespace SAMViewer
             }          
         }
 
-        public OpType m_Optype;
+        public OpType Optype;
     }
     public enum OpType
     {
-        ADD,
-        REMOVE
+        Add,
+        Remove
     }
     /// <summary>
     /// 提示框
@@ -63,9 +58,9 @@ namespace SAMViewer
     {
         public BoxPromotion()
         {
-            mLeftUp = new PointPromotion(OpType.ADD);
-            mRightBottom = new PointPromotion(OpType.ADD);
-            mType = PromotionType.Box;
+            mLeftUp = new PointPromotion(OpType.Add);
+            mRightBottom = new PointPromotion(OpType.Add);
+            Type = PromotionType.Box;
         }
         public override float[] GetInput()
         {

@@ -1,10 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
+﻿using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace SAMViewer
 {
@@ -13,15 +9,15 @@ namespace SAMViewer
     /// </summary>
     internal class SimpleTokenizer
     {
-        private static SimpleTokenizer                   theSingleton = null;
-        private        Dictionary<int, string>           byte_encoder;
-        private        Dictionary<string, int>           byte_decoder;
-        private        Dictionary<string, int>           encoder   = new Dictionary<string, int>();
-        private        Dictionary<int, string>           decoder   = new Dictionary<int, string>();
-        private        Dictionary<(string, string), int> bpe_ranks = new Dictionary<(string, string), int>();
-        private        Dictionary<string, string>        cache     = new Dictionary<string, string>();
-        private        Regex                             pat;
-        private        int                               contextLength = 77;
+        private static   SimpleTokenizer                   theSingleton = null;
+        private          Dictionary<int, string>           byteEncoder;
+        private          Dictionary<string, int>           byteDecoder;
+        private readonly Dictionary<string, int>           encoder   = new();
+        private          Dictionary<int, string>           decoder   = new();
+        private          Dictionary<(string, string), int> bpeRanks = new();
+        private          Dictionary<string, string>        cache     = new();
+        private          Regex                             pat;
+        private readonly int                               contextLength = 77;
 
         public static SimpleTokenizer Instance()
         {
@@ -41,12 +37,12 @@ namespace SAMViewer
         /// </summary>
         private void Init()
         {
-            byte_encoder = BytesToUnicode();
-            byte_decoder = byte_encoder.ToDictionary(kvp => kvp.Value, kvp => kvp.Key);
+            byteEncoder = BytesToUnicode();
+            byteDecoder = byteEncoder.ToDictionary(kvp => kvp.Value, kvp => kvp.Key);
 
-            var merges = LoadBPEMerges(default_bpe());//加载BPE
-            var vocab = byte_encoder.Values.ToList();
-            foreach (var v in byte_encoder.Values.ToList())
+            var merges = LoadBpeMerges(default_bpe());//加载BPE
+            var vocab = byteEncoder.Values.ToList();
+            foreach (var v in byteEncoder.Values.ToList())
             {
                 vocab.Add(v + "</w>");
             }
@@ -63,7 +59,7 @@ namespace SAMViewer
                 encoder[vocab[i]] = i;
             }
             decoder = encoder.ToDictionary(kvp => kvp.Value, kvp => kvp.Key);
-            bpe_ranks = merges.Select((merge, index) => new { merge, index })
+            bpeRanks = merges.Select((merge, index) => new { merge, index })
                                          .ToDictionary(item => item.merge, item => item.index);
             cache = new Dictionary<string, string>()
             {
@@ -78,22 +74,22 @@ namespace SAMViewer
         /// </summary>
         /// <param name="textpromot"></param>
         /// <returns></returns>
-        public List<Int64> tolikenlize(string textpromot)
+        public List<Int64> Tolikenlize(string textpromot)
         {
-            var sot_token = encoder["<|startoftext|>"];
-            var eot_token = encoder["<|endoftext|>"];
+            var sotToken = encoder["<|startoftext|>"];
+            var eotToken = encoder["<|endoftext|>"];
             var texts = new List<string>() { textpromot };
             var allTokens = new List<Int64>();
             foreach (var text in texts)
             {
-                allTokens.Add(sot_token);
+                allTokens.Add(sotToken);
                 allTokens.AddRange(Encode(text));
-                allTokens.Add(eot_token);
+                allTokens.Add(eotToken);
             }
             if (allTokens.Count > contextLength)
             {
                 allTokens.RemoveRange(contextLength, allTokens.Count - contextLength);
-                allTokens[contextLength-1] = eot_token;
+                allTokens[contextLength-1] = eotToken;
             }
             else
             {
@@ -112,8 +108,8 @@ namespace SAMViewer
             text = whitespace_clean(basic_clean(text)).ToLower();
             foreach (Match match in Regex.Matches(text, pat.ToString()))
             {
-                var token = string.Join("", match.Value.Select(c => byte_encoder[c]));
-                var bpeTokenList = bpe(token).Split(' ');
+                var token = string.Join("", match.Value.Select(c => byteEncoder[c]));
+                var bpeTokenList = Bpe(token).Split(' ');
                 foreach (var bpeToken in bpeTokenList)
                 {
                     bpeTokens.Add(encoder[bpeToken]);
@@ -136,7 +132,7 @@ namespace SAMViewer
             var byteList = new List<byte>();
             foreach (var c in text)
             {
-                byteList.Add((byte)byte_decoder[c.ToString()]);
+                byteList.Add((byte)byteDecoder[c.ToString()]);
             }
             var byteArray = byteList.ToArray();
             var decodedText = Encoding.UTF8.GetString(byteArray).Replace("</w>", " ");
@@ -144,7 +140,7 @@ namespace SAMViewer
             return decodedText;
         }
 
-        private string bpe(string token)
+        private string Bpe(string token)
         {
             if (cache.ContainsKey(token))
             {
@@ -166,8 +162,8 @@ namespace SAMViewer
 
             while (true)
             {
-                (var first, var second) = pairs.OrderBy(pair => bpe_ranks.ContainsKey(pair) ? bpe_ranks[pair] : double.PositiveInfinity).First();
-                if (!bpe_ranks.ContainsKey((first, second)))
+                (var first, var second) = pairs.OrderBy(pair => bpeRanks.ContainsKey(pair) ? bpeRanks[pair] : double.PositiveInfinity).First();
+                if (!bpeRanks.ContainsKey((first, second)))
                 {
                     break;
                 }
@@ -220,7 +216,7 @@ namespace SAMViewer
             return Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)+ "\\bpe_simple_vocab_16e6.txt";
         }
 
-        private List<(string, string)> LoadBPEMerges(string bpePath)
+        private List<(string, string)> LoadBpeMerges(string bpePath)
         {
             var merges = new List<(string, string)>();
 

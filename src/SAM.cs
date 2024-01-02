@@ -1,71 +1,64 @@
 ﻿using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using OpenCvSharp;
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Media.Imaging;
 
 namespace SAMViewer
 {
     /// <summary>
     /// Segment Anything
     /// </summary>
-    internal class SAM
+    internal class Sam
     {
-        public static SAM              theSingleton = null;
-        private       InferenceSession mEncoder;
-        private       InferenceSession mDecoder;
-        public        float            mask_threshold = 0.0f;
-        private       bool             mReady         = false;
-        protected SAM()
+        public static Sam              TheSingleton = null;
+        private       InferenceSession encoder;
+        private       InferenceSession decoder;
+        public        float            MaskThreshold = 0.0f;
+        private       bool             ready         = false;
+        protected Sam()
         {
            
         }
-        public static SAM Instance()
+        public static Sam Instance()
         {
-            if (null == theSingleton)
+            if (null == TheSingleton)
             {
-                theSingleton = new SAM();
+                TheSingleton = new Sam();
             }
-            return theSingleton;
+            return TheSingleton;
         }
         /// <summary>
         /// 加载Segment Anything模型
         /// </summary>
-        public void LoadONNXModel()
+        public void LoadOnnxModel()
         {
-            if (mEncoder != null)
-                mEncoder.Dispose();
+            if (encoder != null)
+                encoder.Dispose();
 
-            if (mDecoder != null)
-                mDecoder.Dispose();
+            if (decoder != null)
+                decoder.Dispose();
 
             var options = new SessionOptions();
             options.EnableMemoryPattern = false;
             options.EnableCpuMemArena = false;
 
             var exePath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-            var encode_model_path = exePath + @"\encoder-quant.onnx";
-            if (!File.Exists(encode_model_path))
+            var encodeModelPath = exePath + @"\encoder-quant.onnx";
+            if (!File.Exists(encodeModelPath))
             {
-                MessageBox.Show(encode_model_path + " not exist!");
+                MessageBox.Show(encodeModelPath + " not exist!");
                 return;
             }
-            mEncoder = new InferenceSession(encode_model_path, options);
+            encoder = new InferenceSession(encodeModelPath, options);
 
-            var decode_model_path = exePath + @"\decoder-quant.onnx";
-            if (!File.Exists(decode_model_path))
+            var decodeModelPath = exePath + @"\decoder-quant.onnx";
+            if (!File.Exists(decodeModelPath))
             {
-                MessageBox.Show(decode_model_path + " not exist!");
+                MessageBox.Show(decodeModelPath + " not exist!");
                 return;
             }
-            mDecoder = new InferenceSession(decode_model_path, options);
+            decoder = new InferenceSession(decodeModelPath, options);
         }
         /// <summary>
         /// Segment Anything对图像进行编码
@@ -81,9 +74,9 @@ namespace SAMViewer
                 NamedOnnxValue.CreateFromTensor("x", tensor)
             };
 
-            var results = mEncoder.Run(inputs);
+            var results = encoder.Run(inputs);
             var embedding = results.First().AsTensor<float>().ToArray();
-            mReady = true;
+            ready = true;
 
             return embedding;
         }
@@ -93,18 +86,18 @@ namespace SAMViewer
         /// </summary>
         public MaskData Decode(List<Promotion> promotions, float[] embedding, int orgWid, int orgHei)
         {
-            if (mReady == false)
+            if (ready == false)
             {
                 MessageBox.Show("Image Embedding is not done!");
                 return null;
             }
 
-            var embedding_tensor = new DenseTensor<float>(embedding, new[] { 1, 256, 64, 64 });
+            var embeddingTensor = new DenseTensor<float>(embedding, new[] { 1, 256, 64, 64 });
 
-            var bpmos = promotions.FindAll(e => e.mType == PromotionType.Box);
-            var pproms = promotions.FindAll(e => e.mType == PromotionType.Point);
-            var boxCount = promotions.FindAll(e => e.mType == PromotionType.Box).Count();
-            var pointCount = promotions.FindAll(e => e.mType == PromotionType.Point).Count();
+            var bpmos = promotions.FindAll(e => e.Type == PromotionType.Box);
+            var pproms = promotions.FindAll(e => e.Type == PromotionType.Point);
+            var boxCount = promotions.FindAll(e => e.Type == PromotionType.Box).Count();
+            var pointCount = promotions.FindAll(e => e.Type == PromotionType.Point).Count();
             var promotion = new float[2 * (boxCount * 2 + pointCount)];
             var label = new float[boxCount * 2 + pointCount];
             for (var i = 0; i < boxCount; i++)
@@ -134,37 +127,37 @@ namespace SAMViewer
                 }
             }
 
-            var point_coords_tensor = new DenseTensor<float>(promotion, new[] { 1, boxCount * 2 + pointCount, 2 });
+            var pointCoordsTensor = new DenseTensor<float>(promotion, new[] { 1, boxCount * 2 + pointCount, 2 });
 
-            var point_label_tensor = new DenseTensor<float>(label, new[] { 1, boxCount * 2 + pointCount });
+            var pointLabelTensor = new DenseTensor<float>(label, new[] { 1, boxCount * 2 + pointCount });
 
             var mask = new float[256 * 256];
             for (var i = 0; i < mask.Count(); i++)
             {
                 mask[i] = 0;
             }
-            var mask_tensor = new DenseTensor<float>(mask, new[] { 1, 1, 256, 256 });
+            var maskTensor = new DenseTensor<float>(mask, new[] { 1, 1, 256, 256 });
 
             var hasMaskValues = new float[1] { 0 };
-            var hasMaskValues_tensor = new DenseTensor<float>(hasMaskValues, new[] { 1 });
+            var hasMaskValuesTensor = new DenseTensor<float>(hasMaskValues, new[] { 1 });
 
-            float[] orig_im_size_values = { orgHei, orgWid };
-            var orig_im_size_values_tensor = new DenseTensor<float>(orig_im_size_values, new[] { 2 });
+            float[] origImSizeValues = { orgHei, orgWid };
+            var origImSizeValuesTensor = new DenseTensor<float>(origImSizeValues, new[] { 2 });
 
-            var decode_inputs = new List<NamedOnnxValue>
+            var decodeInputs = new List<NamedOnnxValue>
             {
-                NamedOnnxValue.CreateFromTensor("image_embeddings", embedding_tensor),
-                NamedOnnxValue.CreateFromTensor("point_coords", point_coords_tensor),
-                NamedOnnxValue.CreateFromTensor("point_labels", point_label_tensor),
-                NamedOnnxValue.CreateFromTensor("mask_input", mask_tensor),
-                NamedOnnxValue.CreateFromTensor("has_mask_input", hasMaskValues_tensor),
-                NamedOnnxValue.CreateFromTensor("orig_im_size", orig_im_size_values_tensor)
+                NamedOnnxValue.CreateFromTensor("image_embeddings", embeddingTensor),
+                NamedOnnxValue.CreateFromTensor("point_coords", pointCoordsTensor),
+                NamedOnnxValue.CreateFromTensor("point_labels", pointLabelTensor),
+                NamedOnnxValue.CreateFromTensor("mask_input", maskTensor),
+                NamedOnnxValue.CreateFromTensor("has_mask_input", hasMaskValuesTensor),
+                NamedOnnxValue.CreateFromTensor("orig_im_size", origImSizeValuesTensor)
             };
             var md = new MaskData();
-            var segmask = mDecoder.Run(decode_inputs).ToList();
-            md.mMask = segmask[0].AsTensor<float>().ToArray().ToList();
-            md.mShape = segmask[0].AsTensor<float>().Dimensions.ToArray();
-            md.mIoU = segmask[1].AsTensor<float>().ToList();
+            var segmask = decoder.Run(decodeInputs).ToList();
+            md.Mask = segmask[0].AsTensor<float>().ToArray().ToList();
+            md.Shape = segmask[0].AsTensor<float>().Dimensions.ToArray();
+            md.IoU = segmask[1].AsTensor<float>().ToList();
             return md;
 
         }

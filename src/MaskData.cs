@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace SAMViewer
+﻿namespace SAMViewer
 {
     /// <summary>
     /// A structure for storing masks and their related data in batched format.
@@ -12,75 +6,78 @@ namespace SAMViewer
     /// </summary>
     internal class MaskData
     {
-        public int[] mShape;
-        public List<float> mMask;
-        public List<float> mIoU;
-        public List<float> mStalibility;
-        public List<int> mBox;
+        public int[]       Shape;
+        public List<float> Mask;
+        public List<float> IoU;
+        public List<float> Stalibility;
+        public List<int>   Box;
 
-        public List<List<float>> mfinalMask;
+        public List<List<float>> MfinalMask;
+
         public MaskData()
         {
-            mShape = new int[4];
-            mMask = new List<float>();
-            mIoU = new List<float>();
-            mStalibility = new List<float>();
-            mBox = new List<int>();
+            Shape       = new int[4];
+            Mask        = new List<float>();
+            IoU         = new List<float>();
+            Stalibility = new List<float>();
+            Box         = new List<int>();
 
-            mfinalMask = new List<List<float>>();
+            MfinalMask = new List<List<float>>();
         }
 
-        public void Filter(float pred_iou_thresh, float stability_score_thresh)
+        public void Filter(float predIouThresh, float stabilityScoreThresh)
         {
-            var m = new List<float>();
-            var i = new List<float>();
-            var s = new List<float>();
+            var m     = new List<float>();
+            var i     = new List<float>();
+            var s     = new List<float>();
             var batch = 0;
-            for (var j = 0; j < mShape[1]; j++)
+            for (var j = 0; j < Shape[1]; j++)
             {
-                if (mIoU[j] >  pred_iou_thresh && mStalibility[j]> stability_score_thresh)
+                if (IoU[j] > predIouThresh && Stalibility[j] > stabilityScoreThresh)
                 {
-                    mfinalMask.Add(mMask.GetRange(j * mShape[2] * mShape[3], mShape[2] * mShape[3]));
+                    MfinalMask.Add(Mask.GetRange(j * Shape[2] * Shape[3], Shape[2] * Shape[3]));
                     //m.AddRange(this.mMask.GetRange(j * this.mShape[2] * this.mShape[3], this.mShape[2] * this.mShape[3]));
-                    i.Add(mIoU[j]);
-                    s.Add(mStalibility[j]);
+                    i.Add(IoU[j]);
+                    s.Add(Stalibility[j]);
                     batch++;
-                }              
+                }
             }
-            mShape[1] = batch;
-            mStalibility.Clear();
-            mMask.Clear();
-            mIoU.Clear();
+
+            Shape[1] = batch;
+            Stalibility.Clear();
+            Mask.Clear();
+            IoU.Clear();
             //this.mMask.AddRange(m);
-            mIoU.AddRange(i);
-            mStalibility.AddRange(s);
+            IoU.AddRange(i);
+            Stalibility.AddRange(s);
         }
-       
+
 
         public float[] CalculateStabilityScore(float maskThreshold, float thresholdOffset)
         {
-            var batchSize = mShape[1];
-            var width = mShape[3];
-            var height = mShape[2];
+            var batchSize = Shape[1];
+            var width     = Shape[3];
+            var height    = Shape[2];
 
             var intersections = new float[batchSize];
-            var unions = new float[batchSize];
+            var unions        = new float[batchSize];
 
             for (var i = 0; i < batchSize; i++)
             {
                 float intersectionSum = 0;
-                float unionSum = 0;
+                float unionSum        = 0;
 
                 for (var j = 0; j < width; j++)
                 {
                     for (var k = 0; k < height; k++)
                     {
                         var index = i * width * height + k * width + j;
-                        if (mMask[index] > maskThreshold + thresholdOffset)
+                        if (Mask[index] > maskThreshold + thresholdOffset)
                         {
                             intersectionSum++;
                         }
-                        if (mMask[index] > maskThreshold - thresholdOffset)
+
+                        if (Mask[index] > maskThreshold - thresholdOffset)
                         {
                             unionSum++;
                         }
@@ -88,7 +85,7 @@ namespace SAMViewer
                 }
 
                 intersections[i] = intersectionSum;
-                unions[i] = unionSum;
+                unions[i]        = unionSum;
             }
 
             var stabilityScores = new float[batchSize];
@@ -102,33 +99,33 @@ namespace SAMViewer
 
         public void Cat(MaskData md)
         {
-            mShape[0] = md.mShape[0];
-            mShape[1] += md.mShape[1];
-            mShape[2] = md.mShape[2];
-            mShape[3] = md.mShape[3];
-            mBox.AddRange(md.mBox);
-            mMask.AddRange(md.mMask);
-            mStalibility.AddRange(md.mStalibility);
-            mIoU.AddRange(md.mIoU);
+            Shape[0] =  md.Shape[0];
+            Shape[1] += md.Shape[1];
+            Shape[2] =  md.Shape[2];
+            Shape[3] =  md.Shape[3];
+            Box.AddRange(md.Box);
+            Mask.AddRange(md.Mask);
+            Stalibility.AddRange(md.Stalibility);
+            IoU.AddRange(md.IoU);
 
-            mfinalMask.AddRange(md.mfinalMask);
+            MfinalMask.AddRange(md.MfinalMask);
         }
 
-        public int[] batched_mask_to_box()
+        public IEnumerable<int> batched_mask_to_box()
         {
-            var C = mShape[1];
-            var width = mShape[3];
-            var height = mShape[2];
+            var C      = Shape[1];
+            var width  = Shape[3];
+            var height = Shape[2];
 
-            var boxes = new int[C*4];
+            var boxes = new int[C * 4];
 
             for (var c = 0; c < C; c++)
             {
                 var emptyMask = true;
-                var top = height;
-                var bottom = 0;
-                var left = width;
-                var right = 0;
+                var top       = height;
+                var bottom    = 0;
+                var left      = width;
+                var right     = 0;
 
                 for (var i = 0; i < width; i++)
                 {
@@ -136,28 +133,28 @@ namespace SAMViewer
                     {
                         //int index = c * width * height + j * width + i;
                         //if (this.mMask[index] > 0)
-                        var index =j * width + i;
-                        if (mfinalMask[c][index] > 0)
+                        var index = j * width + i;
+                        if (MfinalMask[c][index] > 0)
                         {
                             emptyMask = false;
-                            top = Math.Min(top, j);
-                            bottom = Math.Max(bottom, j);
-                            left = Math.Min(left, i);
-                            right = Math.Max(right, i);
+                            top       = Math.Min(top, j);
+                            bottom    = Math.Max(bottom, j);
+                            left      = Math.Min(left, i);
+                            right     = Math.Max(right, i);
                         }
                     }
                 }
 
                 if (emptyMask)
                 {
-                    boxes[c*4]=0;
-                    boxes[c * 4+1] = 0;
-                    boxes[c * 4+2] = 0;
-                    boxes[c * 4+3] = 0;
+                    boxes[c * 4]     = 0;
+                    boxes[c * 4 + 1] = 0;
+                    boxes[c * 4 + 2] = 0;
+                    boxes[c * 4 + 3] = 0;
                 }
                 else
                 {
-                    boxes[c * 4] = left;
+                    boxes[c * 4]     = left;
                     boxes[c * 4 + 1] = top;
                     boxes[c * 4 + 2] = right;
                     boxes[c * 4 + 3] = bottom;
