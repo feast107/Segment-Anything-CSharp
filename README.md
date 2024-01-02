@@ -12,16 +12,15 @@
 2.使用C#语言加载模型，进行推理，并用WPF进行交互和显示。  
 
  ## 源码编译</h2>  
- 1.下载源码到本地  
- 2.Visual Studio打开.sln项目解决方案  
- 3.安装Nuget包  
-  3.1在Visual Studio中，鼠标右键单击项目并选择“管理NuGet程序包”。  
-  3.2在“NuGet包管理器”窗口中，选择“浏览”选项卡。  
-  3.3搜索Microsoft.ML.OnnxRuntime，选择1.15.1版本，点击安装  
-  3.4搜索OpenCvSharp4,选择4.8.0版本，点击安装  
-  3.5搜索OpenCvSharp4.runtime.win,选择4.8.0版本，点击安装  
- 4.将decoder-quant.onnx,encoder-quant.onnx,textual.onnx,visual.onnx放到exe路径下  
- 5.运行程序
+ - 拉取源码
+ - MSBuild 构建生成
+ - 将以下文件放到exe目录下
+    + decoder-quant.onnx
+    + encoder-quant.onnx
+    + textual.onnx
+    + visual.onnx
+    
+ - 运行程序
 
  效果演示：   
  点Promot：展开Point栏，点击AddPoint后，鼠标点击左侧图像选择点。Add Mask表示正向点，Remove Mask表示负向点。  
