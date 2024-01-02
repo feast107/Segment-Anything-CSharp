@@ -16,7 +16,7 @@ namespace SAMViewer
         public SolidColorBrush m_Brush = Brushes.Red;
         public PointAnnotation(SolidColorBrush brush)
         {
-            this.m_Brush = brush;
+            m_Brush = brush;
             _shape = new Ellipse
             {
                 Width = DefaultSize,

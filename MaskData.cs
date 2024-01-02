@@ -10,7 +10,7 @@ namespace SAMViewer
     /// A structure for storing masks and their related data in batched format.
     /// Implements basic filtering and concatenation.
     /// </summary>
-    class MaskData
+    internal class MaskData
     {
         public int[] mShape;
         public List<float> mMask;
@@ -21,66 +21,66 @@ namespace SAMViewer
         public List<List<float>> mfinalMask;
         public MaskData()
         {
-            this.mShape = new int[4];
-            this.mMask = new List<float>();
-            this.mIoU = new List<float>();
-            this.mStalibility = new List<float>();
-            this.mBox = new List<int>();
+            mShape = new int[4];
+            mMask = new List<float>();
+            mIoU = new List<float>();
+            mStalibility = new List<float>();
+            mBox = new List<int>();
 
-            this.mfinalMask = new List<List<float>>();
+            mfinalMask = new List<List<float>>();
         }
 
         public void Filter(float pred_iou_thresh, float stability_score_thresh)
         {
-            List<float> m = new List<float>();
-            List<float> i = new List<float>();
-            List<float> s = new List<float>();
-            int batch = 0;
-            for (int j = 0; j < this.mShape[1]; j++)
+            var m = new List<float>();
+            var i = new List<float>();
+            var s = new List<float>();
+            var batch = 0;
+            for (var j = 0; j < mShape[1]; j++)
             {
-                if (this.mIoU[j] >  pred_iou_thresh && this.mStalibility[j]> stability_score_thresh)
+                if (mIoU[j] >  pred_iou_thresh && mStalibility[j]> stability_score_thresh)
                 {
-                    this.mfinalMask.Add(this.mMask.GetRange(j * this.mShape[2] * this.mShape[3], this.mShape[2] * this.mShape[3]));
+                    mfinalMask.Add(mMask.GetRange(j * mShape[2] * mShape[3], mShape[2] * mShape[3]));
                     //m.AddRange(this.mMask.GetRange(j * this.mShape[2] * this.mShape[3], this.mShape[2] * this.mShape[3]));
-                    i.Add(this.mIoU[j]);
-                    s.Add(this.mStalibility[j]);
+                    i.Add(mIoU[j]);
+                    s.Add(mStalibility[j]);
                     batch++;
                 }              
             }
-            this.mShape[1] = batch;
-            this.mStalibility.Clear();
-            this.mMask.Clear();
-            this.mIoU.Clear();
+            mShape[1] = batch;
+            mStalibility.Clear();
+            mMask.Clear();
+            mIoU.Clear();
             //this.mMask.AddRange(m);
-            this.mIoU.AddRange(i);
-            this.mStalibility.AddRange(s);
+            mIoU.AddRange(i);
+            mStalibility.AddRange(s);
         }
        
 
         public float[] CalculateStabilityScore(float maskThreshold, float thresholdOffset)
         {
-            int batchSize = this.mShape[1];
-            int width = this.mShape[3];
-            int height = this.mShape[2];
+            var batchSize = mShape[1];
+            var width = mShape[3];
+            var height = mShape[2];
 
-            float[] intersections = new float[batchSize];
-            float[] unions = new float[batchSize];
+            var intersections = new float[batchSize];
+            var unions = new float[batchSize];
 
-            for (int i = 0; i < batchSize; i++)
+            for (var i = 0; i < batchSize; i++)
             {
                 float intersectionSum = 0;
                 float unionSum = 0;
 
-                for (int j = 0; j < width; j++)
+                for (var j = 0; j < width; j++)
                 {
-                    for (int k = 0; k < height; k++)
+                    for (var k = 0; k < height; k++)
                     {
-                        int index = i * width * height + k * width + j;
-                        if (this.mMask[index] > maskThreshold + thresholdOffset)
+                        var index = i * width * height + k * width + j;
+                        if (mMask[index] > maskThreshold + thresholdOffset)
                         {
                             intersectionSum++;
                         }
-                        if (this.mMask[index] > maskThreshold - thresholdOffset)
+                        if (mMask[index] > maskThreshold - thresholdOffset)
                         {
                             unionSum++;
                         }
@@ -91,8 +91,8 @@ namespace SAMViewer
                 unions[i] = unionSum;
             }
 
-            float[] stabilityScores = new float[batchSize];
-            for (int i = 0; i < batchSize; i++)
+            var stabilityScores = new float[batchSize];
+            for (var i = 0; i < batchSize; i++)
             {
                 stabilityScores[i] = intersections[i] / unions[i];
             }
@@ -102,42 +102,42 @@ namespace SAMViewer
 
         public void Cat(MaskData md)
         {
-            this.mShape[0] = md.mShape[0];
-            this.mShape[1] += md.mShape[1];
-            this.mShape[2] = md.mShape[2];
-            this.mShape[3] = md.mShape[3];
-            this.mBox.AddRange(md.mBox);
-            this.mMask.AddRange(md.mMask);
-            this.mStalibility.AddRange(md.mStalibility);
-            this.mIoU.AddRange(md.mIoU);
+            mShape[0] = md.mShape[0];
+            mShape[1] += md.mShape[1];
+            mShape[2] = md.mShape[2];
+            mShape[3] = md.mShape[3];
+            mBox.AddRange(md.mBox);
+            mMask.AddRange(md.mMask);
+            mStalibility.AddRange(md.mStalibility);
+            mIoU.AddRange(md.mIoU);
 
-            this.mfinalMask.AddRange(md.mfinalMask);
+            mfinalMask.AddRange(md.mfinalMask);
         }
 
         public int[] batched_mask_to_box()
         {
-            int C = this.mShape[1];
-            int width = this.mShape[3];
-            int height = this.mShape[2];
+            var C = mShape[1];
+            var width = mShape[3];
+            var height = mShape[2];
 
-            int[] boxes = new int[C*4];
+            var boxes = new int[C*4];
 
-            for (int c = 0; c < C; c++)
+            for (var c = 0; c < C; c++)
             {
-                bool emptyMask = true;
-                int top = height;
-                int bottom = 0;
-                int left = width;
-                int right = 0;
+                var emptyMask = true;
+                var top = height;
+                var bottom = 0;
+                var left = width;
+                var right = 0;
 
-                for (int i = 0; i < width; i++)
+                for (var i = 0; i < width; i++)
                 {
-                    for (int j = 0; j < height; j++)
+                    for (var j = 0; j < height; j++)
                     {
                         //int index = c * width * height + j * width + i;
                         //if (this.mMask[index] > 0)
-                        int index =j * width + i;
-                        if (this.mfinalMask[c][index] > 0)
+                        var index =j * width + i;
+                        if (mfinalMask[c][index] > 0)
                         {
                             emptyMask = false;
                             top = Math.Min(top, j);

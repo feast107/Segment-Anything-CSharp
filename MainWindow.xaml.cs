@@ -18,146 +18,156 @@ namespace SAMViewer
     public partial class MainWindow : Window
     {
         // 图像文件路径
-        private string mImagePath = string.Empty;
-        SAM mSam = SAM.Instance();
-        CLIP mCLIP = CLIP.Instance();
-        List<Promotion> mPromotionList = new List<Promotion>();
-        float[] mImgEmbedding;
-        private RectAnnotation mCurRectAnno;
-        private Point _startPoint;
-        int mOrgwid;
-        int mOrghei;
+        private string          mImagePath     = string.Empty;
+        private SAM             mSam           = SAM.Instance();
+        private CLIP            mCLIP          = CLIP.Instance();
+        private List<Promotion> mPromotionList = new List<Promotion>();
+        private float[]         mImgEmbedding;
+        private RectAnnotation  mCurRectAnno;
+        private Point           _startPoint;
+        private int             mOrgwid;
+
+        private int mOrghei;
         //undo and redo
         private Stack<Promotion> mUndoStack = new Stack<Promotion>();
         private Stack<Promotion> mRedoStack = new Stack<Promotion>();
-        Dispatcher UI;
-        SAMAutoMask mAutoMask;
-        MaskData mAutoMaskData;
-        Operation mCurOp;
+        private Dispatcher       UI;
+        private SAMAutoMask      mAutoMask;
+        private MaskData         mAutoMaskData;
+
+        private Operation mCurOp;
         // 构造函数
         public MainWindow()
         {
             InitializeComponent();
 
-            this.mImage.Width = 0.7f * this.Width;
-            this.mImage.Height = this.Height;
+            mImage.Width = 0.7f * Width;
+            mImage.Height = Height;
 
-            this.mMask.Width = 0.7f * this.Width;
-            this.mMask.Height = this.Height;
+            mMask.Width = 0.7f * Width;
+            mMask.Height = Height;
 
-            this.UI = Dispatcher.CurrentDispatcher;
+            UI = Dispatcher.CurrentDispatcher;
 
         }
 
         /// <summary>
         /// 加载图像
         /// </summary>
-        void LoadImage(string imgpath)
+        private void LoadImage(string imgpath)
         {
-            BitmapImage bitmap = new BitmapImage(new Uri(imgpath));
-            this.mOrgwid = (int)bitmap.Width;
-            this.mOrghei = (int)bitmap.Height;
-            this.mImage.Source = bitmap;//显示图像            
+            var bitmap = new BitmapImage(new Uri(imgpath));
+            mOrgwid = (int)bitmap.Width;
+            mOrghei = (int)bitmap.Height;
+            mImage.Source = bitmap;//显示图像            
         }
         // 鼠标左键按下事件处理程序
         private void image_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {  
+        {
             // 如果当前没有选中的标注，创建一个点标注
-            this.mImage.CaptureMouse();
-            if (this.mCurOp == Operation.Point)
+            mImage.CaptureMouse();
+            switch (mCurOp)
             {
+                case Operation.Point:
+                {
+                    var type  = RAdd.IsChecked == true ? OpType.ADD : OpType.REMOVE;
+                    var brush = type           == OpType.ADD ? Brushes.Red : Brushes.Black;
 
-                OpType type = this.RAdd.IsChecked == true ? OpType.ADD : OpType.REMOVE;
-                SolidColorBrush brush = type == OpType.ADD ? Brushes.Red : Brushes.Black;
-
-                PointAnnotation annotation = new PointAnnotation(brush);
-                Point canvasP = e.GetPosition(this.ImgCanvas);
-                annotation.Position = canvasP;
-                this.ImgCanvas.Children.Add(annotation);
+                    var annotation = new PointAnnotation(brush);
+                    var canvasP    = e.GetPosition(ImgCanvas);
+                    annotation.Position = canvasP;
+                    ImgCanvas.Children.Add(annotation);
 
                
-                Promotion promt = new PointPromotion(type);
-                Point clickPoint = e.GetPosition(this.mImage);
-                Point orgImgPoint = this.Window2Image(clickPoint);
-                (promt as PointPromotion).X = (int)orgImgPoint.X;
-                (promt as PointPromotion).Y = (int)orgImgPoint.Y;
+                    Promotion promt       = new PointPromotion(type);
+                    var       clickPoint  = e.GetPosition(mImage);
+                    var       orgImgPoint = Window2Image(clickPoint);
+                    ((PointPromotion)promt).X = (int)orgImgPoint.X;
+                    ((PointPromotion)promt).Y = (int)orgImgPoint.Y;
              
               
-                Transforms ts = new Transforms(1024);
-                PointPromotion ptn = ts.ApplyCoords((promt as PointPromotion), this.mOrgwid, this.mOrghei);
-                ptn.mAnation = annotation;
-                this.mUndoStack.Push(ptn);
-                this.mPromotionList.Add(ptn);
-                Thread thread = new Thread(() =>
+                    var ts  = new Transforms(1024);
+                    var ptn = ts.ApplyCoords((promt as PointPromotion), mOrgwid, mOrghei);
+                    ptn.mAnation = annotation;
+                    mUndoStack.Push(ptn);
+                    mPromotionList.Add(ptn);
+                    var thread = new Thread(() =>
+                    {
+                        var md = mSam.Decode(mPromotionList, mImgEmbedding, mOrgwid, mOrghei);
+                        ShowMask(md.mMask.ToArray(), Color.FromArgb(100, 255, 0, 0));
+                    });
+                    thread.Start();
+                    break;
+                }
+                case Operation.Box:
                 {
-                    MaskData md = this.mSam.Decode(this.mPromotionList, this.mImgEmbedding, this.mOrgwid, this.mOrghei);
-                    this.ShowMask(md.mMask.ToArray(), Color.FromArgb((byte)100, (byte)255, (byte)0, (byte)0));
-                });
-                thread.Start();
-            }
-            else if (this.mCurOp == Operation.Box)
-            {
-                _startPoint = e.GetPosition(this.ImgCanvas);
-                this.mCurRectAnno = new RectAnnotation
-                {
-                    Width = 0,
-                    Height = 0,
-                    StartPosition = _startPoint
-                };
-                this.Reset();
-                this.ImgCanvas.Children.Add(this.mCurRectAnno);
+                    _startPoint = e.GetPosition(ImgCanvas);
+                    mCurRectAnno = new RectAnnotation
+                    {
+                        Width         = 0,
+                        Height        = 0,
+                        StartPosition = _startPoint
+                    };
+                    Reset();
+                    ImgCanvas.Children.Add(mCurRectAnno);
 
-                Point clickPoint = e.GetPosition(this.mImage);
-                Point orgImgPoint = this.Window2Image(clickPoint);
-                this.mCurRectAnno.LeftUP = orgImgPoint;
+                    var clickPoint  = e.GetPosition(mImage);
+                    var orgImgPoint = Window2Image(clickPoint);
+                    mCurRectAnno.LeftUP = orgImgPoint;
+                    break;
+                }
             }
-
         }
 
         // 鼠标移动事件处理程序
         private void image_MouseMove(object sender, MouseEventArgs e)
         {
             // 如果当前有选中的标注，处理拖动和调整大小操作
-            if (e.LeftButton == MouseButtonState.Pressed && this.mCurRectAnno != null)
-            {
-                var currentPoint = e.GetPosition(this.ImgCanvas);
-                var width = Math.Abs(currentPoint.X - _startPoint.X);
-                var height = Math.Abs(currentPoint.Y - _startPoint.Y);
-                this.mCurRectAnno.Width = width;
-                this.mCurRectAnno.Height = height;
-                Canvas.SetLeft(this.mCurRectAnno, Math.Min(_startPoint.X, currentPoint.X));
-                Canvas.SetTop(this.mCurRectAnno, Math.Min(_startPoint.Y, currentPoint.Y));
-            }
+            if (e.LeftButton != MouseButtonState.Pressed || mCurRectAnno == null) return;
+            var currentPoint = e.GetPosition(ImgCanvas);
+            var width        = Math.Abs(currentPoint.X - _startPoint.X);
+            var height       = Math.Abs(currentPoint.Y - _startPoint.Y);
+            mCurRectAnno.Width  = width;
+            mCurRectAnno.Height = height;
+            Canvas.SetLeft(mCurRectAnno, Math.Min(_startPoint.X, currentPoint.X));
+            Canvas.SetTop(mCurRectAnno, Math.Min(_startPoint.Y, currentPoint.Y));
         }
         private void image_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            this.mImage.ReleaseMouseCapture();
-            if (this.mCurRectAnno == null)
+            mImage.ReleaseMouseCapture();
+            if (mCurRectAnno == null)
                 return;
         
-            Point clickPoint = e.GetPosition(this.mImage);
-            Point orgImgPoint = this.Window2Image(clickPoint);
-            this.mCurRectAnno.RightBottom = orgImgPoint;
+            var clickPoint = e.GetPosition(mImage);
+            var orgImgPoint = Window2Image(clickPoint);
+            mCurRectAnno.RightBottom = orgImgPoint;
 
-            BoxPromotion promt = new BoxPromotion();
-            (promt as BoxPromotion).mLeftUp.X = (int)this.mCurRectAnno.LeftUP.X;
-            (promt as BoxPromotion).mLeftUp.Y = (int)this.mCurRectAnno.LeftUP.Y;
-
-            (promt as BoxPromotion).mRightBottom.X = (int)this.mCurRectAnno.RightBottom.X;
-            (promt as BoxPromotion).mRightBottom.Y = (int)this.mCurRectAnno.RightBottom.Y;
-
-            Transforms ts = new Transforms(1024);
-            var pb = ts.ApplyBox(promt, this.mOrgwid, this.mOrghei);
-            pb.mAnation = this.mCurRectAnno;
-            this.mUndoStack.Push(pb);
-            this.mPromotionList.Add(pb);
-            Thread thread = new Thread(() =>
+            var promt = new BoxPromotion
             {
-                MaskData md = this.mSam.Decode(this.mPromotionList, this.mImgEmbedding,this.mOrgwid,this.mOrghei);
-                this.ShowMask(md.mMask.ToArray(), Color.FromArgb((byte)100, (byte)255, (byte)0, (byte)0));
+                mLeftUp =
+                {
+                    X = (int)mCurRectAnno.LeftUP.X,
+                    Y = (int)mCurRectAnno.LeftUP.Y
+                },
+                mRightBottom =
+                {
+                    X = (int)mCurRectAnno.RightBottom.X,
+                    Y = (int)mCurRectAnno.RightBottom.Y
+                }
+            };
+
+            var ts = new Transforms(1024);
+            var pb = ts.ApplyBox(promt, mOrgwid, mOrghei);
+            pb.mAnation = mCurRectAnno;
+            mUndoStack.Push(pb);
+            mPromotionList.Add(pb);
+            var thread = new Thread(() =>
+            {
+                var md = mSam.Decode(mPromotionList, mImgEmbedding,mOrgwid,mOrghei);
+                ShowMask(md.mMask.ToArray(), Color.FromArgb(100, 255, 0, 0));
             });
             thread.Start();
-            this.mCurRectAnno = null;
+            mCurRectAnno = null;
         }
        
         /// <summary>
@@ -166,48 +176,51 @@ namespace SAMViewer
         private void SelectFileButton_Click(object sender, RoutedEventArgs e)
         {
             // Create OpenFileDialog
-            Microsoft.Win32.OpenFileDialog openFileDialog = new Microsoft.Win32.OpenFileDialog();
-
-            // Set filter for file extension and default file extension
-            openFileDialog.DefaultExt = ".png";
-            openFileDialog.Filter = "Image files (*.jpg, *.jpeg, *.png)|*.jpg;*.jpeg;*.png|All files (*.*)|*.*";
+            var openFileDialog = new Microsoft.Win32.OpenFileDialog
+            {
+                // Set filter for file extension and default file extension
+                DefaultExt = ".png",
+                Filter     = "Image files (*.jpg, *.jpeg, *.png)|*.jpg;*.jpeg;*.png|All files (*.*)|*.*"
+            };
 
             // Display OpenFileDialog by calling ShowDialog method
-            Nullable<bool> result = openFileDialog.ShowDialog();
+            var result = openFileDialog.ShowDialog();
 
             // Get the selected file name and display in a TextBox
             if (result == true)
             {
-                this.ImgPathTxt.Text = openFileDialog.FileName;
-                this.mImagePath = this.ImgPathTxt.Text;
+                ImgPathTxt.Text = openFileDialog.FileName;
+                mImagePath = ImgPathTxt.Text;
 
-                if (!File.Exists(this.mImagePath))
+                if (!File.Exists(mImagePath))
                     return;
 
-                this.LoadImgGrid.Visibility = Visibility.Collapsed;
-                this.ImgCanvas.Visibility = Visibility.Visible;
-                this.LoadImage(this.mImagePath);
-                this.ShowStatus("Image Loaded");
+                LoadImgGrid.Visibility = Visibility.Collapsed;
+                ImgCanvas.Visibility = Visibility.Visible;
+                LoadImage(mImagePath);
+                ShowStatus("Image Loaded");
 
-                Thread thread = new Thread(() =>
+                var thread = new Thread(() =>
                 {
-                    this.mSam.LoadONNXModel();//加载Segment Anything模型
+                    mSam.LoadONNXModel();//加载Segment Anything模型
 
                     UI.Invoke(new Action(delegate
                     {
-                        this.ShowStatus("ONNX Model Loaded");
+                        ShowStatus("ONNX Model Loaded");
                     }));
                     // 读取图像
-                    OpenCvSharp.Mat image = OpenCvSharp.Cv2.ImRead(this.mImagePath, OpenCvSharp.ImreadModes.Color);
-                    this.mImgEmbedding = this.mSam.Encode(image, this.mOrgwid, this.mOrghei);//Image Embedding
+                    var image = OpenCvSharp.Cv2.ImRead(mImagePath);
+                    mImgEmbedding = mSam.Encode(image, mOrgwid, mOrghei);//Image Embedding
 
-                    this.mAutoMask = new SAMAutoMask();
-                    this.mAutoMask.mImgEmbedding = this.mImgEmbedding;
-                    this.mAutoMask.mSAM = this.mSam;
+                    mAutoMask               = new SAMAutoMask
+                    {
+                        mImgEmbedding = mImgEmbedding,
+                        mSAM          = mSam
+                    };
                     image.Dispose();
                     UI.Invoke(new Action(delegate
                     {
-                        this.ShowStatus("Image Embedding Cal Finished");
+                        ShowStatus("Image Embedding Cal Finished");
                     }));
                 });
                 thread.Start();
@@ -216,16 +229,16 @@ namespace SAMViewer
         }
         private void BReLoad_Click(object sender, RoutedEventArgs e)
         {
-            this.Reset();
-            this.LoadImgGrid.Visibility = Visibility.Visible;
-            this.ImgCanvas.Visibility = Visibility.Hidden;
+            Reset();
+            LoadImgGrid.Visibility = Visibility.Visible;
+            ImgCanvas.Visibility = Visibility.Hidden;
         }
 
-        double CalculateCosineSimilarity(List<float> vector1, List<float> vector2)
+        private double CalculateCosineSimilarity(List<float> vector1, List<float> vector2)
         {
-            double dotProduct = DotProduct(vector1, vector2);
-            double magnitude1 = Magnitude(vector1);
-            double magnitude2 = Magnitude(vector2);
+            var dotProduct = DotProduct(vector1, vector2);
+            var magnitude1 = Magnitude(vector1);
+            var magnitude2 = Magnitude(vector2);
 
             if (magnitude1 == 0 || magnitude2 == 0)
                 return 0;
@@ -233,12 +246,12 @@ namespace SAMViewer
             return dotProduct / (magnitude1 * magnitude2);
         }
 
-        double DotProduct(List<float> vector1, List<float> vector2)
+        private double DotProduct(List<float> vector1, List<float> vector2)
         {          
             return vector1.Zip(vector2, (a, b) => a * b).Sum();
         }
 
-        static double Magnitude(List<float> vector)
+        private static double Magnitude(List<float> vector)
         {
             return Math.Sqrt(vector.Select(x => x * x).Sum());
         }
@@ -247,18 +260,18 @@ namespace SAMViewer
         /// </summary>
         private void BUndo_Click(object sender, RoutedEventArgs e)
         {
-            if (this.mUndoStack.Count > 0)
+            if (mUndoStack.Count > 0)
             {
-                Promotion p = this.mUndoStack.Pop();
-                this.mRedoStack.Push(p);
-                this.RemoveAnation(p);
-                this.mPromotionList.Clear();
-                this.mPromotionList.AddRange(this.mUndoStack.ToArray());
+                var p = mUndoStack.Pop();
+                mRedoStack.Push(p);
+                RemoveAnnotation(p);
+                mPromotionList.Clear();
+                mPromotionList.AddRange(mUndoStack.ToArray());
                 
-                Thread thread = new Thread(() =>
+                var thread = new Thread(() =>
                 {
-                    MaskData md = this.mSam.Decode(this.mPromotionList, this.mImgEmbedding, this.mOrgwid, this.mOrghei);
-                    this.ShowMask(md.mMask.ToArray(), Color.FromArgb((byte)100, (byte)255, (byte)0, (byte)0));
+                    var md = mSam.Decode(mPromotionList, mImgEmbedding, mOrgwid, mOrghei);
+                    ShowMask(md.mMask.ToArray(), Color.FromArgb(100, 255, 0, 0));
                 });
                 thread.Start();
             }
@@ -272,17 +285,17 @@ namespace SAMViewer
         /// </summary>
         private void BRedo_Click(object sender, RoutedEventArgs e)
         {
-            if (this.mRedoStack.Count > 0)
+            if (mRedoStack.Count > 0)
             {
-                Promotion pt = this.mRedoStack.Pop();
-                this.mUndoStack.Push(pt);
-                this.AddAnation(pt);
-                this.mPromotionList.Clear();
-                this.mPromotionList.AddRange(this.mUndoStack.ToArray());
-                Thread thread = new Thread(() =>
+                var pt = mRedoStack.Pop();
+                mUndoStack.Push(pt);
+                AddAnnotation(pt);
+                mPromotionList.Clear();
+                mPromotionList.AddRange(mUndoStack.ToArray());
+                var thread = new Thread(() =>
                 {
-                    MaskData md = this.mSam.Decode(this.mPromotionList, this.mImgEmbedding, this.mOrgwid, this.mOrghei);
-                    this.ShowMask(md.mMask.ToArray(), Color.FromArgb((byte)100, (byte)255, (byte)0, (byte)0));
+                    var md = mSam.Decode(mPromotionList, mImgEmbedding, mOrgwid, mOrghei);
+                    ShowMask(md.mMask.ToArray(), Color.FromArgb(100, 255, 0, 0));
                 });
                 thread.Start();
             }
@@ -296,68 +309,66 @@ namespace SAMViewer
         /// </summary>
         private void BReset_Click(object sender, RoutedEventArgs e)
         {
-            this.Reset();
+            Reset();
         }
         /// <summary>
         /// 显示分割结果
         /// </summary>
-        void ShowMask(float[] mask, Color color)
+        private void ShowMask(float[] mask, Color color)
         {
 
             UI.Invoke(new Action(delegate
             {
-                WriteableBitmap bp = new WriteableBitmap(this.mOrgwid, this.mOrghei, 96, 96, PixelFormats.Pbgra32, null);
+                var bp = new WriteableBitmap(mOrgwid, mOrghei, 96, 96, PixelFormats.Pbgra32, null);
                 // 设置像素数据，将所有像素的透明度设置为半透明
-                byte[] pixelData = new byte[this.mOrgwid * this.mOrghei * 4];
+                var pixelData = new byte[mOrgwid * mOrghei * 4];
                 Array.Clear(pixelData, 0, pixelData.Length);
-                for (int y = 0; y < this.mOrghei; y++)
+                for (var y = 0; y < mOrghei; y++)
                 {
-                    for (int x = 0; x < this.mOrgwid; x++)
+                    for (var x = 0; x < mOrgwid; x++)
                     {
-                        int ind = y * this.mOrgwid + x;
-                        if (mask[ind] > this.mSam.mask_threshold)
-                        {
-                            pixelData[4 * ind] = color.B;  // Blue
-                            pixelData[4 * ind + 1] = color.G;  // Green
-                            pixelData[4 * ind + 2] = color.R;  // Red
-                            pixelData[4 * ind + 3] = 100;  // Alpha
-                        }
+                        var ind = y * mOrgwid + x;
+                        if (!(mask[ind] > mSam.mask_threshold)) continue;
+                        pixelData[4 * ind]     = color.B; // Blue
+                        pixelData[4 * ind + 1] = color.G; // Green
+                        pixelData[4 * ind + 2] = color.R; // Red
+                        pixelData[4 * ind + 3] = 100;     // Alpha
                     }
                 }
 
-                bp.WritePixels(new Int32Rect(0, 0, this.mOrgwid, this.mOrghei), pixelData, this.mOrgwid * 4, 0);
+                bp.WritePixels(new Int32Rect(0, 0, mOrgwid, mOrghei), pixelData, mOrgwid * 4, 0);
                 // 创建一个BitmapImage对象，将WriteableBitmap作为源
-                this.mMask.Source = bp;
+                mMask.Source = bp;
             }));
         }
 
         /// <summary>
         /// 显示分割结果
         /// </summary>
-        void ShowMask(MaskData mask)
+        private void ShowMask(MaskData mask)
         {
             UI.Invoke(new Action(delegate
             {
-                this.ShowStatus("Finish");
-                this.ClearAnation();
-                WriteableBitmap bp = new WriteableBitmap(this.mOrgwid, this.mOrghei, 96, 96, PixelFormats.Pbgra32, null);
+                ShowStatus("Finish");
+                ClearAnnotation();
+                var bp = new WriteableBitmap(mOrgwid, mOrghei, 96, 96, PixelFormats.Pbgra32, null);
                 // 设置像素数据，将所有像素的透明度设置为半透明
-                byte[] pixelData = new byte[this.mOrgwid * this.mOrghei * 4];
+                var pixelData = new byte[mOrgwid * mOrghei * 4];
                 Array.Clear(pixelData, 0, pixelData.Length);
-                for (int i =0;i< mask.mShape[1];i++)
+                for (var i =0;i< mask.mShape[1];i++)
                 {
-                    Random random = new Random();
-                    Color randomColor = Color.FromArgb((byte)100, (byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256));
-                    for (int y = 0; y < this.mOrghei; y++)
+                    var random = new Random();
+                    var randomColor = Color.FromArgb(100, (byte)random.Next(256), (byte)random.Next(256), (byte)random.Next(256));
+                    for (var y = 0; y < mOrghei; y++)
                     {
-                        for (int x = 0; x < this.mOrgwid; x++)
+                        for (var x = 0; x < mOrgwid; x++)
                         {
                             //int ind = i* this.mOrghei* this.mOrgwid+y * this.mOrgwid + x;
                             //int indpixel = y * this.mOrgwid + x;
                             //if (mask.mMask[ind] > this.mSam.mask_threshold)
 
-                            int indpixel = y * this.mOrgwid + x;
-                            if (mask.mfinalMask[i][indpixel] > this.mSam.mask_threshold)
+                            var indpixel = y * mOrgwid + x;
+                            if (mask.mfinalMask[i][indpixel] > mSam.mask_threshold)
                             {
                                 pixelData[4 * indpixel] = randomColor.B;  // Blue
                                 pixelData[4 * indpixel + 1] = randomColor.G;  // Green
@@ -366,10 +377,10 @@ namespace SAMViewer
                             }
                         }
                     }
-                    Point leftup = this.Image2Window(new Point(mask.mBox[4 * i], mask.mBox[4 * i+1]));
-                    Point rightdown = this.Image2Window(new Point(mask.mBox[4 * i+2], mask.mBox[4 * i +3]));
-                    RectAnnotation box = new RectAnnotation();
-                    this.ImgCanvas.Children.Add(box);
+                    var leftup = Image2Window(new Point(mask.mBox[4 * i], mask.mBox[4 * i+1]));
+                    var rightdown = Image2Window(new Point(mask.mBox[4 * i+2], mask.mBox[4 * i +3]));
+                    var box = new RectAnnotation();
+                    ImgCanvas.Children.Add(box);
                     box.Width = rightdown.X - leftup.X;
                     box.Height = rightdown.Y - leftup.Y;
                     Canvas.SetLeft(box, leftup.X);
@@ -378,185 +389,189 @@ namespace SAMViewer
                   
                 }
               
-                bp.WritePixels(new Int32Rect(0, 0, this.mOrgwid, this.mOrghei), pixelData, this.mOrgwid * 4, 0);
+                bp.WritePixels(new Int32Rect(0, 0, mOrgwid, mOrghei), pixelData, mOrgwid * 4, 0);
                 // 创建一个BitmapImage对象，将WriteableBitmap作为源
-                this.mMask.Source = bp;
+                mMask.Source = bp;
             }));
         }
         /// <summary>
         /// 窗口坐标转图像坐标
         /// </summary>
-        Point Window2Image(Point clickPoint)
+        private Point Window2Image(Point clickPoint)
         {
-            double imageWidth = this.mImage.ActualWidth;
-            double imageHeight = this.mImage.ActualHeight;
-            double scaleX = imageWidth / this.mOrgwid;
-            double scaleY = imageHeight / this.mOrghei;
-            double offsetX = (imageWidth - scaleX * this.mOrgwid) / 2;
-            double offsetY = (imageHeight - scaleY * this.mOrghei) / 2;
-            double imageX = (clickPoint.X - offsetX) / scaleX;
-            double imageY = (clickPoint.Y - offsetY) / scaleY;
-            Point p = new Point();
-            p.X = (int)imageX;
-            p.Y = (int)imageY;
+            var imageWidth  = mImage.ActualWidth;
+            var imageHeight = mImage.ActualHeight;
+            var scaleX      = imageWidth                        / mOrgwid;
+            var scaleY      = imageHeight                       / mOrghei;
+            var offsetX     = (imageWidth   - scaleX * mOrgwid) / 2;
+            var offsetY     = (imageHeight  - scaleY * mOrghei) / 2;
+            var imageX      = (clickPoint.X - offsetX)          / scaleX;
+            var imageY      = (clickPoint.Y - offsetY)          / scaleY;
+            var p           = new Point
+            {
+                X = (int)imageX,
+                Y = (int)imageY
+            };
 
             return p;
         }
-        Point Image2Window(Point image)
+
+        private Point Image2Window(Point image)
         {
-            double imageWidth = this.mImage.ActualWidth;
-            double imageHeight = this.mImage.ActualHeight;
-            double scaleX = imageWidth / this.mOrgwid;
-            double scaleY = imageHeight / this.mOrghei;
-            double offsetX = (imageWidth - scaleX * this.mOrgwid) / 2;
-            double offsetY = (imageHeight - scaleY * this.mOrghei) / 2;
+            var imageWidth = mImage.ActualWidth;
+            var imageHeight = mImage.ActualHeight;
+            var scaleX = imageWidth / mOrgwid;
+            var scaleY = imageHeight / mOrghei;
+            var offsetX = (imageWidth - scaleX * mOrgwid) / 2;
+            var offsetY = (imageHeight - scaleY * mOrghei) / 2;
 
-            double windowsX = image.X * scaleX + offsetX;
-            double windowsY = image.Y * scaleY + offsetX;
+            var windowsX = image.X * scaleX + offsetX;
+            var windowsY = image.Y * scaleY + offsetX;
 
-            Point p = new Point();
-            p.X = (int)windowsX;
-            p.Y = (int)windowsY;
+            var p = new Point
+            {
+                X = (int)windowsX,
+                Y = (int)windowsY
+            };
 
             return p;
         }
         /// <summary>
         /// 清空
         /// </summary>
-        void ClearAnation()
+        private void ClearAnnotation()
         {
-            List<UserControl> todel = new List<UserControl>();
-            foreach (var v in this.ImgCanvas.Children)
-            {
-                if (v is PointAnnotation || v is RectAnnotation)
-                    todel.Add(v as UserControl);
-            }
+            var todel = (from object v in ImgCanvas.Children
+                where v is PointAnnotation || v is RectAnnotation
+                select v as UserControl).ToList();
 
-            todel.ForEach(e => { this.ImgCanvas.Children.Remove(e); });
+            todel.ForEach(e => { ImgCanvas.Children.Remove(e); });
         }
         /// <summary>
         /// 删除
         /// </summary>
-        void RemoveAnation(Promotion pt)
+        private void RemoveAnnotation(Promotion pt)
         {
-            if (this.ImgCanvas.Children.Contains(pt.mAnation))
-                this.ImgCanvas.Children.Remove(pt.mAnation);
+            if (ImgCanvas.Children.Contains(pt.mAnation))
+                ImgCanvas.Children.Remove(pt.mAnation);
         }
         /// <summary>
         /// 添加
         /// </summary>
-        void AddAnation(Promotion pt)
+        private void AddAnnotation(Promotion pt)
         {
-            if (!this.ImgCanvas.Children.Contains(pt.mAnation))
-                this.ImgCanvas.Children.Add(pt.mAnation);
+            if (!ImgCanvas.Children.Contains(pt.mAnation))
+                ImgCanvas.Children.Add(pt.mAnation);
 
         }
         /// <summary>
         /// 显示状态信息
         /// </summary>
-        void ShowStatus(string message)
+        private void ShowStatus(string message)
         {
-            this.StatusTxt.Text = message;
-        }   
-        void Reset()
+            StatusTxt.Text = message;
+        }
+
+        private void Reset()
         {
-            this.ClearAnation();
-            this.mPromotionList.Clear();
-            this.mMask.Source = null;
+            ClearAnnotation();
+            mPromotionList.Clear();
+            mMask.Source = null;
         }
 
         private void mAddPoint_Click(object sender, RoutedEventArgs e)
         {
-            this.mCurOp = Operation.Point;
+            mCurOp = Operation.Point;
         }
 
         private void mAddBox_Click(object sender, RoutedEventArgs e)
         {
-            this.mCurOp = Operation.Box;
+            mCurOp = Operation.Box;
         }
 
         private void mAutoSeg_Click(object sender, RoutedEventArgs e)
         {
-            this.mAutoMask.points_per_side = int.Parse(this.mPoints_per_side.Text);
-            this.mAutoMask.pred_iou_thresh = float.Parse(this.mPred_iou_thresh.Text);
-            this.mAutoMask.stability_score_thresh = float.Parse(this.mStability_score_thresh.Text);
-            this.ShowStatus("Auto Segment......");
-            Thread thread = new Thread(() =>
+            mAutoMask.points_per_side = int.Parse(mPoints_per_side.Text);
+            mAutoMask.pred_iou_thresh = float.Parse(mPred_iou_thresh.Text);
+            mAutoMask.stability_score_thresh = float.Parse(mStability_score_thresh.Text);
+            ShowStatus("Auto Segment......");
+            var thread = new Thread(() =>
             {
-                this.mCurOp = Operation.Everything;               
-                this.mAutoMaskData = this.mAutoMask.Generate(this.mImagePath);
-                this.ShowMask(this.mAutoMaskData);
+                mCurOp = Operation.Everything;               
+                mAutoMaskData = mAutoMask.Generate(mImagePath);
+                ShowMask(mAutoMaskData);
             });
             thread.Start();        
         }
-        MaskData MatchTextAndImage(string txt)
+
+        private MaskData MatchTextAndImage(string txt)
         {
-            var txtEmbedding = this.mCLIP.TxtEncoder(txt);
-            OpenCvSharp.Mat image = new OpenCvSharp.Mat(this.mImagePath, OpenCvSharp.ImreadModes.Color);
-            int maxindex = 0;
-            double max = 0.0;
-            MaskData final = new MaskData();
-            for (int i = 0; i < this.mAutoMaskData.mShape[1]; i++)
+            var txtEmbedding = mCLIP.TxtEncoder(txt);
+            var image = new OpenCvSharp.Mat(mImagePath);
+            var maxIndex = 0;
+            var max = 0.0;
+            var final = new MaskData();
+            for (var i = 0; i < mAutoMaskData.mShape[1]; i++)
             {
                 // Define the coordinates of the ROI
-                int x = this.mAutoMaskData.mBox[4 * i];  // Top-left x coordinate
-                int y = this.mAutoMaskData.mBox[4 * i + 1];// Top-left y coordinate
-                int width = this.mAutoMaskData.mBox[4 * i + 2] - this.mAutoMaskData.mBox[4 * i];  // Width of the ROI
-                int height = this.mAutoMaskData.mBox[4 * i + 3] - this.mAutoMaskData.mBox[4 * i + 1];  // Height of the ROI
+                var x = mAutoMaskData.mBox[4 * i];  // Top-left x coordinate
+                var y = mAutoMaskData.mBox[4 * i + 1];// Top-left y coordinate
+                var width = mAutoMaskData.mBox[4 * i + 2] - mAutoMaskData.mBox[4 * i];  // Width of the ROI
+                var height = mAutoMaskData.mBox[4 * i + 3] - mAutoMaskData.mBox[4 * i + 1];  // Height of the ROI
 
                 // Create a Rect object for the ROI
-                OpenCvSharp.Rect roiRect = new OpenCvSharp.Rect(x, y, width, height);
+                var roiRect = new OpenCvSharp.Rect(x, y, width, height);
                 // Extract the ROI from the image
-                OpenCvSharp.Mat roi = new OpenCvSharp.Mat(image, roiRect);
-                int neww = 0;
-                int newh = 0;
-                float scale = 224 * 1.0f / Math.Max(image.Rows, image.Cols);
-                float newht = image.Rows * scale;
-                float newwt = image.Cols * scale;
+                var roi = new OpenCvSharp.Mat(image, roiRect);
+                var neww = 0;
+                var newh = 0;
+                var scale = 224 * 1.0f / Math.Max(image.Rows, image.Cols);
+                var newht = image.Rows * scale;
+                var newwt = image.Cols * scale;
 
                 neww = (int)(newwt + 0.5);
                 newh = (int)(newht + 0.5);
 
-                OpenCvSharp.Mat resizedImage = new OpenCvSharp.Mat();
+                var resizedImage = new OpenCvSharp.Mat();
                 OpenCvSharp.Cv2.Resize(roi, resizedImage, new OpenCvSharp.Size(neww, newh));
                 // 创建大的Mat
-                OpenCvSharp.Mat largeMat = new OpenCvSharp.Mat(new OpenCvSharp.Size(224, 224), OpenCvSharp.MatType.CV_8UC3, OpenCvSharp.Scalar.Black);
+                var largeMat = new OpenCvSharp.Mat(new OpenCvSharp.Size(224, 224), OpenCvSharp.MatType.CV_8UC3, OpenCvSharp.Scalar.Black);
 
                 // 计算小的Mat放置的位置
-                int xoffset = (largeMat.Width - resizedImage.Width) / 2;
-                int yoffset = (largeMat.Height - resizedImage.Height) / 2;
+                var xoffset = (largeMat.Width - resizedImage.Width) / 2;
+                var yoffset = (largeMat.Height - resizedImage.Height) / 2;
 
                 // 将小的Mat放置到大的Mat的中心位置
                 resizedImage.CopyTo(largeMat[new OpenCvSharp.Rect(xoffset, yoffset, resizedImage.Width, resizedImage.Height)]);
 
                 //将图像转换为浮点型
-                OpenCvSharp.Mat floatImage = new OpenCvSharp.Mat();
+                var floatImage = new OpenCvSharp.Mat();
                 largeMat.ConvertTo(floatImage, OpenCvSharp.MatType.CV_32FC3);
                 // 计算均值和标准差
-                OpenCvSharp.Scalar mean = new OpenCvSharp.Scalar(0.48145466, 0.4578275, 0.40821073);
-                OpenCvSharp.Scalar std = new OpenCvSharp.Scalar(0.26862954, 0.26130258, 0.27577711);
+                var mean = new OpenCvSharp.Scalar(0.48145466, 0.4578275, 0.40821073);
+                var std = new OpenCvSharp.Scalar(0.26862954, 0.26130258, 0.27577711);
                 // 归一化
                 OpenCvSharp.Cv2.Normalize(floatImage, floatImage, 0, 255, OpenCvSharp.NormTypes.MinMax);
                 OpenCvSharp.Cv2.Subtract(floatImage, mean, floatImage);
                 OpenCvSharp.Cv2.Divide(floatImage, std, floatImage);
 
-                float[] transformedImg = new float[3 * 224 * 224];
-                for (int ii = 0; ii < 224; ii++)
+                var transformedImg = new float[3 * 224 * 224];
+                for (var ii = 0; ii < 224; ii++)
                 {
-                    for (int j = 0; j < 224; j++)
+                    for (var j = 0; j < 224; j++)
                     {
-                        int index = j * 224 + ii;
+                        var index = j * 224 + ii;
                         transformedImg[index] = floatImage.At<OpenCvSharp.Vec3f>(j, ii)[0];
                         transformedImg[224 * 224 + index] = floatImage.At<OpenCvSharp.Vec3f>(j, ii)[1];
                         transformedImg[2 * 224 * 224 + index] = floatImage.At<OpenCvSharp.Vec3f>(j, ii)[2];
                     }
                 }
 
-                var imgEmbedding = this.mCLIP.ImgEncoder(transformedImg);
-                double maxs = CalculateCosineSimilarity(txtEmbedding.ToList(), imgEmbedding.ToList());
+                var imgEmbedding = mCLIP.ImgEncoder(transformedImg);
+                var maxs = CalculateCosineSimilarity(txtEmbedding.ToList(), imgEmbedding.ToList());
                 if (maxs > max)
                 {
-                    maxindex = i;
+                    maxIndex = i;
                     max = maxs;
                 }
 
@@ -566,13 +581,13 @@ namespace SAMViewer
                 floatImage.Dispose();
             }
 
-            this.mAutoMaskData.mShape.CopyTo(final.mShape,0);
+            mAutoMaskData.mShape.CopyTo(final.mShape,0);
             final.mShape[1] = 1;
-            final.mBox.AddRange(this.mAutoMaskData.mBox.GetRange(maxindex * 4, 4));
-            final.mIoU.AddRange(this.mAutoMaskData.mIoU.GetRange(maxindex, 1));
-            final.mStalibility.AddRange(this.mAutoMaskData.mStalibility.GetRange(maxindex, 1));
+            final.mBox.AddRange(mAutoMaskData.mBox.GetRange(maxIndex * 4, 4));
+            final.mIoU.AddRange(mAutoMaskData.mIoU.GetRange(maxIndex, 1));
+            final.mStalibility.AddRange(mAutoMaskData.mStalibility.GetRange(maxIndex, 1));
             //.GetRange(maxindex * final.mShape[2] * final.mShape[3], final.mShape[2] * final.mShape[3])
-            final.mfinalMask.Add(this.mAutoMaskData.mfinalMask[maxindex]);
+            final.mfinalMask.Add(mAutoMaskData.mfinalMask[maxIndex]);
 
 
 
@@ -583,35 +598,33 @@ namespace SAMViewer
         }
         private void mText_Click(object sender, RoutedEventArgs e)
         {
-            this.mCurOp = Operation.Text;
-            this.ShowStatus("Image And Text Matching......");
-            string txt = this.mTextinput.Text;
-            Thread thread = new Thread(() =>
+            mCurOp = Operation.Text;
+            ShowStatus("Image And Text Matching......");
+            var txt = mTextinput.Text;
+            var thread = new Thread(() =>
             {
-                MaskData matches = this.MatchTextAndImage(txt);
-                this.ShowMask(matches);
+                var matches = MatchTextAndImage(txt);
+                ShowMask(matches);
             });
             thread.Start();
         }
 
         private void Expanded(object sender, RoutedEventArgs e)
         {
-            if (this.mPointexp == null || this.mBoxexp == null || this.mEverythingExp == null || this.mTextExp == null)
+            if (mPointexp == null || mBoxexp == null || mEverythingExp == null || mTextExp == null)
                 return;
 
-            Expander exp = sender as Expander;
-            if (exp.IsExpanded == true)
-            {
-                this.mPointexp.IsExpanded = this.mPointexp == exp;
-                this.mBoxexp.IsExpanded = this.mBoxexp == exp;
-                this.mEverythingExp.IsExpanded = this.mEverythingExp == exp;
-                this.mTextExp.IsExpanded = this.mTextExp == exp;                                                   
-            }
+            var exp = sender as Expander;
+            if (exp?.IsExpanded != true) return;
+            mPointexp.IsExpanded      = mPointexp      == exp;
+            mBoxexp.IsExpanded        = mBoxexp        == exp;
+            mEverythingExp.IsExpanded = mEverythingExp == exp;
+            mTextExp.IsExpanded       = mTextExp       == exp;
 
         }
     }
 
-    enum Operation
+    internal enum Operation
     {
         Point,
         Box,

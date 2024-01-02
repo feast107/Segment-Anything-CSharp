@@ -11,17 +11,17 @@ namespace SAMViewer
     /// <summary>
     /// BPE
     /// </summary>
-    class SimpleTokenizer
+    internal class SimpleTokenizer
     {
-        static SimpleTokenizer theSingleton = null;
-        Dictionary<int, string> byte_encoder;
-        Dictionary<string, int> byte_decoder;
-        Dictionary<string, int> encoder = new Dictionary<string, int>();
-        Dictionary<int, string> decoder = new Dictionary<int, string>();
-        Dictionary<(string, string), int> bpe_ranks = new Dictionary<(string, string), int>();
-        Dictionary<string, string> cache = new Dictionary<string, string>();
-        System.Text.RegularExpressions.Regex pat;
-        int contextLength = 77;
+        private static SimpleTokenizer                   theSingleton = null;
+        private        Dictionary<int, string>           byte_encoder;
+        private        Dictionary<string, int>           byte_decoder;
+        private        Dictionary<string, int>           encoder   = new Dictionary<string, int>();
+        private        Dictionary<int, string>           decoder   = new Dictionary<int, string>();
+        private        Dictionary<(string, string), int> bpe_ranks = new Dictionary<(string, string), int>();
+        private        Dictionary<string, string>        cache     = new Dictionary<string, string>();
+        private        Regex                             pat;
+        private        int                               contextLength = 77;
 
         public static SimpleTokenizer Instance()
         {
@@ -34,44 +34,44 @@ namespace SAMViewer
 
         protected SimpleTokenizer()
         {
-            this.Init();
+            Init();
         }
         /// <summary>
         /// 初始化
         /// </summary>
-        void Init()
+        private void Init()
         {
-            this.byte_encoder = this.BytesToUnicode();
-            this.byte_decoder = this.byte_encoder.ToDictionary(kvp => kvp.Value, kvp => kvp.Key);
+            byte_encoder = BytesToUnicode();
+            byte_decoder = byte_encoder.ToDictionary(kvp => kvp.Value, kvp => kvp.Key);
 
-            List<(string, string)> merges = LoadBPEMerges(default_bpe());//加载BPE
-            List<string> vocab = this.byte_encoder.Values.ToList();
-            foreach (var v in this.byte_encoder.Values.ToList())
+            var merges = LoadBPEMerges(default_bpe());//加载BPE
+            var vocab = byte_encoder.Values.ToList();
+            foreach (var v in byte_encoder.Values.ToList())
             {
                 vocab.Add(v + "</w>");
             }
 
 
-            foreach ((string merge1, string merge2) in merges)
+            foreach ((var merge1, var merge2) in merges)
             {
                 vocab.Add(merge1 + merge2);
             }
             vocab.AddRange(new List<string> { "<|startoftext|>", "<|endoftext|>" });
 
-            for (int i = 0; i < vocab.Count; i++)
+            for (var i = 0; i < vocab.Count; i++)
             {
-                this.encoder[vocab[i]] = i;
+                encoder[vocab[i]] = i;
             }
-            this.decoder = encoder.ToDictionary(kvp => kvp.Value, kvp => kvp.Key);
-            this.bpe_ranks = merges.Select((merge, index) => new { merge, index })
+            decoder = encoder.ToDictionary(kvp => kvp.Value, kvp => kvp.Key);
+            bpe_ranks = merges.Select((merge, index) => new { merge, index })
                                          .ToDictionary(item => item.merge, item => item.index);
-            this.cache = new Dictionary<string, string>()
+            cache = new Dictionary<string, string>()
             {
                 { "<|startoftext|>","<|startoftext|>" },
                 { "<|endoftext|>","<|endoftext|>" }
             };
 
-            this.pat = new Regex(@" <\| startoftext\|>|<\| endoftext\|>| 's|'t | 're|'ve | 'm|'ll | 'd|[\p{L}]+|[\p{N}]|[^\s\p{L}\p{N}]+", RegexOptions.IgnoreCase);
+            pat = new Regex(@" <\| startoftext\|>|<\| endoftext\|>| 's|'t | 're|'ve | 'm|'ll | 'd|[\p{L}]+|[\p{N}]|[^\s\p{L}\p{N}]+", RegexOptions.IgnoreCase);
         }
         /// <summary>
         /// 将字符串转换为Token
@@ -80,14 +80,14 @@ namespace SAMViewer
         /// <returns></returns>
         public List<Int64> tolikenlize(string textpromot)
         {
-            int sot_token = this.encoder["<|startoftext|>"];
-            int eot_token = this.encoder["<|endoftext|>"];
-            List<string> texts = new List<string>() { textpromot };
-            List<Int64> allTokens = new List<Int64>();
-            foreach (string text in texts)
+            var sot_token = encoder["<|startoftext|>"];
+            var eot_token = encoder["<|endoftext|>"];
+            var texts = new List<string>() { textpromot };
+            var allTokens = new List<Int64>();
+            foreach (var text in texts)
             {
                 allTokens.Add(sot_token);
-                allTokens.AddRange(this.Encode(text));
+                allTokens.AddRange(Encode(text));
                 allTokens.Add(eot_token);
             }
             if (allTokens.Count > contextLength)
@@ -97,7 +97,7 @@ namespace SAMViewer
             }
             else
             {
-                Int64[] added = new Int64[contextLength - allTokens.Count];
+                var added = new Int64[contextLength - allTokens.Count];
                 allTokens.AddRange(added);
             }
 
@@ -106,17 +106,17 @@ namespace SAMViewer
         /// <summary>
         /// 对字符串进行编码
         /// </summary>
-        List<Int64> Encode(string text)
+        private List<Int64> Encode(string text)
         {
-            List<Int64> bpeTokens = new List<Int64>();
-            text = this.whitespace_clean(this.basic_clean(text)).ToLower();
-            foreach (Match match in Regex.Matches(text, this.pat.ToString()))
+            var bpeTokens = new List<Int64>();
+            text = whitespace_clean(basic_clean(text)).ToLower();
+            foreach (Match match in Regex.Matches(text, pat.ToString()))
             {
-                string token = string.Join("", match.Value.Select(c => this.byte_encoder[c]));
-                string[] bpeTokenList = this.bpe(token).Split(' ');
-                foreach (string bpeToken in bpeTokenList)
+                var token = string.Join("", match.Value.Select(c => byte_encoder[c]));
+                var bpeTokenList = bpe(token).Split(' ');
+                foreach (var bpeToken in bpeTokenList)
                 {
-                    bpeTokens.Add(this.encoder[bpeToken]);
+                    bpeTokens.Add(encoder[bpeToken]);
                 }
             }
             return bpeTokens;
@@ -124,39 +124,40 @@ namespace SAMViewer
         /// <summary>
         /// 将tokens解码成字符串解码
         /// </summary>
-        string Decode(List<int> tokens)
+        private string Decode(List<int> tokens)
         {
-            StringBuilder textBuilder = new StringBuilder();
-            foreach (int token in tokens)
+            var textBuilder = new StringBuilder();
+            foreach (var token in tokens)
             {
-                textBuilder.Append(this.decoder[token]);
+                textBuilder.Append(decoder[token]);
             }
-            string text = textBuilder.ToString();
+            var text = textBuilder.ToString();
 
-            List<byte> byteList = new List<byte>();
-            foreach (char c in text)
+            var byteList = new List<byte>();
+            foreach (var c in text)
             {
-                byteList.Add((byte)this.byte_decoder[c.ToString()]);
+                byteList.Add((byte)byte_decoder[c.ToString()]);
             }
-            byte[] byteArray = byteList.ToArray();
-            string decodedText = Encoding.UTF8.GetString(byteArray).Replace("</w>", " ");
+            var byteArray = byteList.ToArray();
+            var decodedText = Encoding.UTF8.GetString(byteArray).Replace("</w>", " ");
 
             return decodedText;
         }
-        string bpe(string token)
+
+        private string bpe(string token)
         {
             if (cache.ContainsKey(token))
             {
                 return cache[token];
             }
-            List<string> word = new List<string>();
-            for (int i=0;i< token.Length-1;i++)
+            var word = new List<string>();
+            for (var i=0;i< token.Length-1;i++)
             {
                 word.Add(token[i].ToString());
             }
             word.Add(token[token.Length - 1].ToString() + "</w>");
             //Tuple<string, string> word = Tuple.Create( token[token.Length - 1] + "</w>", token.Substring(0, token.Length - 1));
-            HashSet<(string, string)> pairs = this.GetPairs(word);
+            var pairs = GetPairs(word);
 
             if (pairs.Count == 0)
             {
@@ -165,19 +166,19 @@ namespace SAMViewer
 
             while (true)
             {
-                (string first, string second) = pairs.OrderBy(pair => bpe_ranks.ContainsKey(pair) ? bpe_ranks[pair] : double.PositiveInfinity).First();
+                (var first, var second) = pairs.OrderBy(pair => bpe_ranks.ContainsKey(pair) ? bpe_ranks[pair] : double.PositiveInfinity).First();
                 if (!bpe_ranks.ContainsKey((first, second)))
                 {
                     break;
                 }
 
-                List<string> newWord = new List<string>();
-                int i = 0;
+                var newWord = new List<string>();
+                var i = 0;
                 while (i < word.Count)
                 {
                     try
                     {
-                        int j = word.IndexOf(first, i);
+                        var j = word.IndexOf(first, i);
                         newWord.AddRange(word.GetRange(i, j - i));
                         i = j;
                     }
@@ -203,37 +204,38 @@ namespace SAMViewer
                     break;
                 else
                 {
-                    pairs = this.GetPairs(newWord);
+                    pairs = GetPairs(newWord);
                 }
                
             }
 
-            string result = string.Join(" ", word);
+            var result = string.Join(" ", word);
             cache[token] = result;
             return result;
 
         }
 
-        string default_bpe()
+        private string default_bpe()
         {
             return Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location)+ "\\bpe_simple_vocab_16e6.txt";
         }
-        List<(string, string)> LoadBPEMerges(string bpePath)
+
+        private List<(string, string)> LoadBPEMerges(string bpePath)
         {
-            List<(string, string)> merges = new List<(string, string)>();
+            var merges = new List<(string, string)>();
 
-            using (FileStream fileStream = File.OpenRead(bpePath))
-            using (StreamReader streamReader = new StreamReader(fileStream, Encoding.UTF8))
+            using (var fileStream = File.OpenRead(bpePath))
+            using (var streamReader = new StreamReader(fileStream, Encoding.UTF8))
             {
-                string content = streamReader.ReadToEnd();
-                string[] lines = content.Split('\n');
-                int startLine = 1;
-                int endLine = 49152 - 256 - 2 + 1;
-                ArraySegment<string> lineSegment = new ArraySegment<string>(lines, startLine, endLine - startLine);
+                var content = streamReader.ReadToEnd();
+                var lines = content.Split('\n');
+                var startLine = 1;
+                var endLine = 49152 - 256 - 2 + 1;
+                var lineSegment = new ArraySegment<string>(lines, startLine, endLine - startLine);
 
-                foreach (string line in lineSegment)
+                foreach (var line in lineSegment)
                 {
-                    string[] merge = line.Split();
+                    var merge = line.Split();
                     merges.Add((merge[0], merge[1]));
                 }
             }
@@ -241,31 +243,31 @@ namespace SAMViewer
             return merges;
         }
 
-        Dictionary<int, string> BytesToUnicode()
+        private Dictionary<int, string> BytesToUnicode()
         {
-            List<int> bs = new List<int>();
-            List<int> cs = new List<int>();
+            var bs = new List<int>();
+            var cs = new List<int>();
 
-            for (int b = (int)'!'; b <= (int)'~'; b++)
+            for (var b = (int)'!'; b <= '~'; b++)
             {
                 bs.Add(b);
                 cs.Add(b);
             }
 
-            for (int b = (int)'¡'; b <= (int)'¬'; b++)
+            for (var b = (int)'¡'; b <= '¬'; b++)
             {
                 bs.Add(b);
                 cs.Add(b);
             }
 
-            for (int b = (int)'®'; b <= (int)'ÿ'; b++)
+            for (var b = (int)'®'; b <= 'ÿ'; b++)
             {
                 bs.Add(b);
                 cs.Add(b);
             }
 
-            int n = 0;
-            for (int b = 0; b < 256; b++)
+            var n = 0;
+            for (var b = 0; b < 256; b++)
             {
                 if (!bs.Contains(b))
                 {
@@ -275,40 +277,43 @@ namespace SAMViewer
                 }
             }
 
-            Dictionary<int, string> byteToUnicode = new Dictionary<int, string>();
-            for (int i = 0; i < bs.Count; i++)
+            var byteToUnicode = new Dictionary<int, string>();
+            for (var i = 0; i < bs.Count; i++)
             {
                 byteToUnicode.Add(bs[i], ((char)cs[i]).ToString());
             }
 
             return byteToUnicode;
         }
-        HashSet<(string, string)> GetPairs(List<string> word)
+
+        private HashSet<(string, string)> GetPairs(List<string> word)
         {
-            HashSet<(string, string)> pairs = new HashSet<(string, string)>();
-            string prevChar = word[0];
-            for (int i = 1; i < word.Count; i++)
+            var pairs = new HashSet<(string, string)>();
+            var prevChar = word[0];
+            for (var i = 1; i < word.Count; i++)
             {
-                string currentChar = word[i].ToString();
+                var currentChar = word[i].ToString();
                 pairs.Add((prevChar, currentChar));
                 prevChar = currentChar;
             }
             return pairs;
         }
 
-        string HtmlDecode(string text)
+        private string HtmlDecode(string text)
         {
             // 还原 HTML 转义字符
             return System.Net.WebUtility.HtmlDecode(text);
         }
-        string basic_clean(string text)
+
+        private string basic_clean(string text)
         {
             text = HtmlDecode(text);
             return text.Trim();
         }
-        string whitespace_clean(string text)
+
+        private string whitespace_clean(string text)
         {
-            text = System.Text.RegularExpressions.Regex.Replace(text, @"\s+", " ");
+            text = Regex.Replace(text, @"\s+", " ");
             text = text.Trim();
             return text;
         }

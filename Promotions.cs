@@ -28,8 +28,8 @@ namespace SAMViewer
 
         public PointPromotion(OpType optype)
         {
-            this.mType = PromotionType.Point;
-            this.m_Optype = optype;
+            mType = PromotionType.Point;
+            m_Optype = optype;
         }
         public int X { get; set; }
         public int Y { get; set; }
@@ -39,7 +39,7 @@ namespace SAMViewer
         }
         public override float[] GetLable()
         {
-            if (this.m_Optype == OpType.ADD)
+            if (m_Optype == OpType.ADD)
             {
                 return new float[1] { 1 };
             }
@@ -59,20 +59,20 @@ namespace SAMViewer
     /// <summary>
     /// 提示框
     /// </summary>
-    class BoxPromotion : Promotion
+    internal class BoxPromotion : Promotion
     {
         public BoxPromotion()
         {
-            this.mLeftUp = new PointPromotion(OpType.ADD);
-            this.mRightBottom = new PointPromotion(OpType.ADD);
-            this.mType = PromotionType.Box;
+            mLeftUp = new PointPromotion(OpType.ADD);
+            mRightBottom = new PointPromotion(OpType.ADD);
+            mType = PromotionType.Box;
         }
         public override float[] GetInput()
         {
-            return new float[4] { this.mLeftUp.X, 
-                this.mLeftUp.Y, 
-                this.mRightBottom.X, 
-                this.mRightBottom.Y };
+            return new float[4] { mLeftUp.X, 
+                mLeftUp.Y, 
+                mRightBottom.X, 
+                mRightBottom.Y };
         }
         public override float[] GetLable()
         {
@@ -85,23 +85,23 @@ namespace SAMViewer
     /// <summary>
     /// 提示蒙版
     /// </summary>
-    class MaskPromotion
+    internal class MaskPromotion
     {
         public MaskPromotion(int wid,int hei)
         {
-            this.mWidth = wid;
-            this.mHeight = hei;
-            this.mMask = new float[this.mWidth,this.mHeight];
+            mWidth = wid;
+            mHeight = hei;
+            mMask = new float[mWidth,mHeight];
         }
 
-        float[,] mMask { get; set; }//蒙版
-        public int mWidth { get; set; }//长度
-        public int mHeight { get; set; }//高度
+        private float[,] mMask   { get; set; } //蒙版
+        public  int      mWidth  { get; set; } //长度
+        public  int      mHeight { get; set; } //高度
     }
     /// <summary>
     /// 提示文本
     /// </summary>
-    class TextPromotion
+    internal class TextPromotion
     {
         public string mText { get; set; }
     }
